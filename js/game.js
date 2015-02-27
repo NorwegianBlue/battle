@@ -22,8 +22,8 @@ game = (function(width, height) {
     var self = {
 
         init: function () {
-            stage = new PIXI.Stage(0xFFFFFF, true);
-            stage.interactive = true;
+            var interactive = true;
+            stage = new PIXI.Stage(0xFFFFFF, interactive);
 
             renderer = new PIXI.autoDetectRenderer(width, height);
             renderer.view.id = "gamecanvas";
@@ -43,9 +43,11 @@ game = (function(width, height) {
 
             redBase = new PIXI.Graphics();
             redBase.interactive = true;
-            redBase.click = redBase.tap = function(interactionData) {
-                redBase.graphicsData[0].fillColor = 0xffff00;
+            redBase.mousedown = redBase.touchstart = function(interactionData) {
+                redBase.graphicsData[0].fillColor = 0xffffff;
+                redBase.graphicsData[0].fillTint = 0xffffff;
                 redBase.graphicsData[0].fillAlpha = 1.0;
+                redBase.dirty = true;
             };
             baseContainer.addChild(redBase);
 
@@ -84,7 +86,7 @@ game = (function(width, height) {
 
                 window.setTimeout(function() {
                     moveBase = true;
-                }, 1000);
+                }, 2000);
             }
 
             if (moveBase2) {
