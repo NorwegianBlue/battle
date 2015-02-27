@@ -44,10 +44,11 @@ game = (function(width, height) {
             redBase = new PIXI.Graphics();
             redBase.interactive = true;
             redBase.mousedown = redBase.touchstart = function(interactionData) {
-                redBase.graphicsData[0].fillColor = 0xffffff;
-                redBase.graphicsData[0].fillTint = 0xffffff;
-                redBase.graphicsData[0].fillAlpha = 1.0;
-                redBase.dirty = true;
+                var gd = redBase.graphicsData[0];
+                redBase.clear();
+                redBase.lineStyle(1, 0xffffff, 0.8);
+                redBase.beginFill(0xffffff, 0.8);
+                redBase.drawRect(gd.shape.x, gd.shape.y, gd.shape.width, gd.shape.height);
             };
             baseContainer.addChild(redBase);
 
