@@ -42,6 +42,11 @@ game = (function(width, height) {
             stage.addChild(armyContainer);
 
             redBase = new PIXI.Graphics();
+            redBase.interactive = true;
+            redBase.click = redBase.tap = function(interactionData) {
+                redBase.graphicsData[0].fillColor = 0xffff00;
+                redBase.graphicsData[0].fillAlpha = 1.0;
+            };
             baseContainer.addChild(redBase);
 
             blueBase = new PIXI.Graphics();
