@@ -4,13 +4,20 @@ game = (function(width, height) {
 
     ];
 
+    var lastTime = 0;
+
     var stage;
     var renderer;
 
     var cellContainer;
+    var baseContainer;
+    var armyContainer;
+
+    var moveBase = false;
 
 
     var self = {
+
         init: function () {
             stage = new PIXI.Stage(0xFFFFFF, true);
             stage.interactive = true;
@@ -20,12 +27,16 @@ game = (function(width, height) {
             renderer.view.style.display = "block";
 
             cellContainer = new PIXI.DisplayObjectContainer();
+            baseContainer = new PIXI.DisplayObjectContainer();
+            armyContainer = new PIXI.DisplayObjectContainer();
 
             window.addEventListener("resize", doResize);
             doResize();
             //window.screen.orientation.lock("portrait").catch(function(){});
 
             stage.addChild(cellContainer);
+            stage.addChild(baseContainer);
+            stage.addChild(armyContainer);
 
             return self;
         },
@@ -34,14 +45,35 @@ game = (function(width, height) {
             loadAssets(function() {
                 document.getElementById("gamearea").appendChild(renderer.view);
                 setupGameState();
+                lastTime = new Date().getTime();
+                moveBase = true;
                 self.update();
             });
         },
 
-        update: function() {
-            requestAnimFrame(self.update);
+        update: function(timestamp) {
+            var elapsed = (timestamp - lastTime);
+            lastTime = timestamp;
+
+            if (moveBase) {
+                baseContainer.removeChildren();
+                var basex = ~~(Math.random() * cells.length),
+                    basey = ~~(Math.random() * cells[0].length);
+                moveBase = false;
+
+                var graphics = new PIXI.Graphics();
+                graphics.lineStyle(1, 0xff0000, 1.0);
+                graphics.beginFill(0xff0000, 0.5);
+                graphics.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
+                baseContainer.addChild(graphics);
+
+                window.setTimeout(function() {
+                    moveBase = true;
+                }, 1000);
+            }
 
             renderer.render(stage);
+            requestAnimFrame(self.update);
         }
     };
 
@@ -90,7 +122,7 @@ game = (function(width, height) {
     function setupGameState() {
         // Create the cells
         var graphics = new PIXI.Graphics();
-        graphics.lineStyle(1, 0x00ff00);
+        graphics.lineStyle(1, 0x00ff00, 1.0);
         cells = Array(Cell.prototype.XHi);
         for(var x = 0; x < Cell.prototype.XHi; x++ ) {
             cells[x] = Array(Cell.prototype.YHi);
