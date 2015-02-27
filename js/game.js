@@ -65,8 +65,7 @@ game = (function(width, height) {
     }
 
     function doResize(event) {
-        var elem = document.getElementById("gamearea");
-        // var elem = renderer.view;
+        var gamearea = document.getElementById("gamearea");
 
         var widthToHeight = width/height;
         var newWidth = window.innerWidth;
@@ -74,19 +73,18 @@ game = (function(width, height) {
 
         var newWidthToHeight = newWidth / newHeight;
 
+        var newcss = "";
         if (newWidthToHeight > widthToHeight) {
             // window width is too wide relative to desired game width
             newWidth = newHeight * widthToHeight;
-            elem.style.height = newHeight + 'px';
-            elem.style.width = newWidth + 'px';
         } else { // window height is too high relative to desired game height
             newHeight = newWidth / widthToHeight;
-            elem.style.width = newWidth + 'px';
-            elem.style.height = newHeight + 'px';
         }
+        newcss += "height: " + newHeight + "px; width: " + newWidth + "px; ";
+        newcss += "margin-top: " + ((window.innerHeight - newHeight) / 2) + "px; ";
+        newcss += "margin-left: " + ((window.innerWidth - newWidth) / 2) + "px";
 
-        elem.style.marginTop = ((window.innerHeight - newHeight) / 2) + 'px';
-        elem.style.marginLeft = ((window.innerWidth - newWidth) / 2) + 'px';
+        gamearea.style.cssText += newcss;
     }
 
     function setupGameState() {
