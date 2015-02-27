@@ -14,7 +14,10 @@ game = (function(width, height) {
     var armyContainer;
 
     var moveBase = false;
+    var moveBase2 = false;
 
+    var redBase;
+    var blueBase;
 
     var self = {
 
@@ -38,6 +41,12 @@ game = (function(width, height) {
             stage.addChild(baseContainer);
             stage.addChild(armyContainer);
 
+            redBase = new PIXI.Graphics();
+            baseContainer.addChild(redBase);
+
+            blueBase = new PIXI.Graphics();
+            baseContainer.addChild(blueBase);
+
             return self;
         },
 
@@ -46,7 +55,10 @@ game = (function(width, height) {
                 document.getElementById("gamearea").appendChild(renderer.view);
                 setupGameState();
                 lastTime = new Date().getTime();
+
                 moveBase = true;
+                moveBase2 = true;
+
                 self.update();
             });
         },
@@ -56,20 +68,33 @@ game = (function(width, height) {
             lastTime = timestamp;
 
             if (moveBase) {
-                baseContainer.removeChildren();
                 var basex = ~~(Math.random() * cells.length),
                     basey = ~~(Math.random() * cells[0].length);
                 moveBase = false;
 
-                var graphics = new PIXI.Graphics();
-                graphics.lineStyle(1, 0xff0000, 1.0);
-                graphics.beginFill(0xff0000, 0.5);
-                graphics.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
-                baseContainer.addChild(graphics);
+                redBase.clear();
+                redBase.lineStyle(1, 0xff0000, 1.0);
+                redBase.beginFill(0xff0000, 0.5);
+                redBase.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
 
                 window.setTimeout(function() {
                     moveBase = true;
                 }, 1000);
+            }
+
+            if (moveBase2) {
+                var basex = ~~(Math.random() * cells.length),
+                    basey = ~~(Math.random() * cells[0].length);
+                moveBase2 = false;
+
+                blueBase.clear();
+                blueBase.lineStyle(1, 0x0000ff, 1.0);
+                blueBase.beginFill(0x0000ff, 0.7);
+                blueBase.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
+
+                window.setTimeout(function() {
+                    moveBase2 = true;
+                }, 330);
             }
 
             renderer.render(stage);
