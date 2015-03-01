@@ -5,10 +5,11 @@ function Cell(x,y, pixiRect) {
     this.flows = new Array(2);
     this.flows[0] = new Array(4);
     this.flows[1] = new Array(4);
-    
-    this.hasBase = false;
+        
     this.armyStrength = 0.0;
     this.armyOwner = -1;
+    
+    this.generatorSpeed = 0.0;
 }
 
 Cell.FLOW_UP = 0;
@@ -62,10 +63,12 @@ Cell.prototype.ypos = function() {
     return this.yi * CONFIG.CELL_HEIGHT;
 };
 
-Cell.prototype.anyFlows = function(owner) {
-    for (var i = 0; i < this.flows[owner].length; i++) {
-        if (this.flows[owner][i] !== undefined) {
-            return true;
+Cell.prototype.anyFlows = function() {
+    for (var owner = 0; owner < 2; owner++ ) {
+        for (var i = 0; i < this.flows[owner].length; i++) {
+            if (this.flows[owner][i] !== undefined) {
+                return true;
+            }
         }
     }
     return false;

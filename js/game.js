@@ -52,9 +52,6 @@ game = (function(width, height) {
     var generators = [];
     var generatorsDirty = true;
     
-    var armies = [];
-    var armiesDirty = true;
-    
     var mapData;
     
     var inputMode = InputModes.IDLE;
@@ -250,14 +247,6 @@ game = (function(width, height) {
     }
     
     function handleClickComplete(firstCell, secondCell) {
-        var army = getArmyAtCell(firstCell.xi, firstCell.yi);
-        if (army !== undefined) {
-            army.x = secondCell.xi;
-            army.y = secondCell.yi;
-            armiesDirty = true;
-            return;
-        }
-
         var direction;
         if (secondCell.xi > firstCell.xi) {
             direction = Cell.RIGHT;
@@ -298,8 +287,29 @@ game = (function(width, height) {
         }
     }
     
-    function stepCell(cell, tickMS) {
-//        if (cell.anyFlows())
+    function flowCell(cell, tickMS) {
+        for (var direction = 0; direction < 4; direction++ ) {
+          if (cell.flows[PLAYER_INDEX][direction]) {
+              var dest = getOffsetCell(cell, direction);
+              if (dest.armyStrength >= 1.0) {
+                  // can't flow anymore
+              } else {
+                  if (dest.armyOwner < 0) {
+                    dest.armyOwner = PLAYER_INDEX;
+                  }
+                  
+                  var flowedAmount = CONFIG.FLOW_RATE;
+                  if (flowedAmount > cell.armyStrength) {
+                      flowedAmount = cell.armyStrength;
+                  }
+                  if (flowedAmount > (1.0 - dest.armyStrength)) {
+                      flowedAmount = (1.0 - dest.armyStrength);
+                  }
+                  dest.armyStrength = dest.armyStrength + flowedAmount;
+                  cell.armyStrength = cell.armyStrength - flowedAmount;
+              }
+          }
+        }
     }
     
 
@@ -313,16 +323,18 @@ game = (function(width, height) {
             var thisTickMS = timeStamp - nextTick + CONFIG.GAME_TICK_MS;  // actual time for this tick. for lag adjustment etc.
             nextTick = timeStamp + CONFIG.GAME_TICK_MS;
             tick++;
-            
-            //foreachBase(function(base) {
-            //
-            //});
-            
+                    
             foreachCell(function(cell) {
-                if (cell.armyStrength > 0  &&  cell.armyOwner >= 0) {
-                    stepCell(cell, thisTickMS);
+                if (cell.generatorSpeed > 0) {
+                    cell.armyStrength = Math.min(cell.armyStrength + cell.generatorSpeed, 1.0);
                 }
+                
+                if (cell.armyStrength > 0  &&  cell.armyOwner >= 0  && cell.anyFlows()) {
+                    flowCell(cell, thisTickMS);
+                }
+                return true;
             });
+            cellsDirty = true;
         }
     }
 
@@ -345,43 +357,6 @@ game = (function(width, height) {
             generatorsDirty = false;
         }
         
-        if (armiesDirty) {
-            drawArmies();
-            armiesDirty = false;
-        }
-
-        /*
-        if (moveBase) {
-            var basex = ~~(Math.random() * cells.length),
-                basey = ~~(Math.random() * cells[0].length);
-            moveBase = false;
-
-            redBase.clear();
-            redBase.lineStyle(1, 0xff0000, 1.0);
-            redBase.beginFill(0xff0000, 0.5);
-            redBase.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
-
-            window.setTimeout(function () {
-                moveBase = true;
-            }, 2000);
-        }
-
-        if (moveBase2) {
-            var basex = ~~(Math.random() * cells.length),
-                basey = ~~(Math.random() * cells[0].length);
-            moveBase2 = false;
-
-            blueBase.clear();
-            blueBase.lineStyle(1, 0x0000ff, 1.0);
-            blueBase.beginFill(0x3333ff, 0.7);
-            blueBase.drawRect(basex * CONFIG.CELL_WIDTH, basey * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
-
-            window.setTimeout(function () {
-                moveBase2 = true;
-            }, 425);
-        }
-        */
-
         renderer.render(stage);
         requestAnimFrame(self.update);
     }
@@ -416,25 +391,12 @@ game = (function(width, height) {
         if (mapData.generators === undefined) {
             return;
         }
-//        generators = Array(mapData.generators);
-        
         for (var i = 0; i < mapData.generators.length; i++) {
             var cell = cells[mapData.generators[i].x][mapData.generators[i].y];
             cell.armyOwner = mapData.generators[i].owner;
             cell.generatorSpeed = mapData.generators[i].speedFactor;
-            
-/*
-
-            generators[i] = new Base(
-                mapData.generators[i].x,
-                mapData.generators[i].y,
-                mapData.generators[i].owner,
-                mapData.generators[i].speedFactor
-            );
-            var c = cells[generators[i].x][generators[i].y];
-            c.armyOwner = generators[i].owner;
-            c.armyStrength = 0.0; //1.0;
-*/
+            cell.generatorSpeed = cell.generatorSpeed ? cell.generatorSpeed : CONFIG.GENERATOR_SPEED;
+            cell.armyStrength = 0.0;
             cellsDirty = true;
         }
     }
@@ -512,7 +474,6 @@ game = (function(width, height) {
         initArmies();
 
         drawGens();
-        drawArmies();
     }
     
     function getBaseShape(cell) {
@@ -545,20 +506,6 @@ game = (function(width, height) {
         return new PIXI.Rectangle(x, y, w, h);
     }
     
-    function drawArmies() {
-        /*
-        armyContainer.removeChildren();
-        var g = new PIXI.Graphics();
-        for(var i = 0; i < armies.length; i++) {
-            var owner = armies[i].owner;
-            g.lineStyle(1, PLAYER_COLORS2[owner], 1.0);
-            g.beginFill(PLAYER_COLORS[owner], 1.0);
-            g.drawShape(getArmyShape(armies[i]));
-        }
-        armyContainer.addChild(g);
- */
-    }
-
 
     function loadAssets(callback) {
         if (assetsToLoad.length > 0) {
