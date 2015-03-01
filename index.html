@@ -9,13 +9,21 @@
     <div id="gamearea">
     </div>
     <script type="text/javascript">
+        
         CELLRES = 64;
+        
         CONFIG = {
             CELL_WIDTH: CELLRES,
             CELL_HEIGHT: CELLRES,
             X_RESOLUTION: 8*CELLRES +1,
             Y_RESOLUTION: 12*CELLRES +1
         };
+        
+        RENDER_OPTIONS = {
+            antialias: false,
+            resolution: window.devicePixelRatio
+        };
+        
     </script>
     <script src="lib/pixi.dev.js"></script>
 

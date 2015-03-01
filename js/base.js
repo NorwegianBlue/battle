@@ -6,6 +6,6 @@ function Base(x,y, owner, speed) {
 }
 
 
-Base.prototype.isNeutral() {
+Base.prototype.isNeutral = function() {
     return this.owner < 0;
 }
