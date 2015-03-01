@@ -2,6 +2,8 @@ function Cell(x,y, pixiRect) {
     this.xi = x;
     this.yi = y;
     this.contents = {};
+    
+    this.army = new Army(x,y, -1);
 }
 
 Cell.prototype.XHi = ~~(CONFIG.X_RESOLUTION / CONFIG.CELL_WIDTH);

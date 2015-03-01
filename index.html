@@ -9,15 +9,19 @@
     <div id="gamearea">
     </div>
     <script type="text/javascript">
+        CELLRES = 64;
         CONFIG = {
-            CELL_WIDTH: 24,
-            CELL_HEIGHT: 24,
-            X_RESOLUTION: 10*24 +1,
-            Y_RESOLUTION: 15*24 +1
+            CELL_WIDTH: CELLRES,
+            CELL_HEIGHT: CELLRES,
+            X_RESOLUTION: 8*CELLRES +1,
+            Y_RESOLUTION: 12*CELLRES +1
         };
     </script>
     <script src="lib/pixi.dev.js"></script>
 
+    <script src="js/utils.js"></script>
+    <script src="js/army.js"></script>
+    <script src="js/base.js"></script>
     <script src="js/cell.js"></script>
     <script src="js/game.js"></script>
 
