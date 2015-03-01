@@ -1,4 +1,3 @@
-var cells;
 var message = "";
 
 CLICK_FEEDBACK_MS = 300;
@@ -7,8 +6,10 @@ CLICK_FEEDBACK_MS = 300;
 RED_INDEX = 0;
 BLUE_INDEX = 1;
 
+PLAYER_INDEX = 1;
+
 PLAYER_COLORS = [0xee0000, 0x0000ff];
-PLAYER_COLORS2 = [0xff6666, 0x9999ff];
+PLAYER_COLORS2 = [0xff9999, 0x9999ff];
 
 InputModes = Object.freeze({
     IDLE: 0,
@@ -22,7 +23,10 @@ game = (function(width, height) {
     var lastTime = 0;
     var nextTextUpdate = 2000; // 10 seconds
     var frameCount = 0;
-    var frameStart;
+    var frameStart = 0;
+    
+    var nextTick = 0;
+    var tick = 0;
 
     var stage;
     var renderer;
@@ -30,6 +34,7 @@ game = (function(width, height) {
     var cellContainer;
     var baseContainer;
     var armyContainer;
+    var flowContainer;
     
     var topContainer;
 
@@ -38,6 +43,11 @@ game = (function(width, height) {
     var text;
 //    var message;
     var textDirty = false;
+
+    var cells;
+    var cellsDirty = false;
+
+    var flowsDirty = false;
     
     var generators = [];
     var generatorsDirty = true;
@@ -65,6 +75,7 @@ game = (function(width, height) {
             cellContainer = new PIXI.DisplayObjectContainer();
             baseContainer = new PIXI.DisplayObjectContainer();
             armyContainer = new PIXI.DisplayObjectContainer();
+            flowContainer = new PIXI.DisplayObjectContainer();
             textContainer = new PIXI.DisplayObjectContainer();
             
             topContainer = new PIXI.DisplayObjectContainer();
@@ -74,7 +85,9 @@ game = (function(width, height) {
 
             stage.addChild(cellContainer);
             stage.addChild(baseContainer);
+            stage.addChild(flowContainer);
             stage.addChild(armyContainer);
+            stage.addChild(textContainer);
             stage.addChild(topContainer);
 
             /*
@@ -93,10 +106,10 @@ game = (function(width, height) {
             baseContainer.addChild(blueBase);
             */
 
-            text = new PIXI.Text("", {font: "20px Roboto,Arial", fill: 'white'});
+            text = new PIXI.Text("Battle", {font: "20px Roboto,Arial", fill: 'white'});
             text.position.x = 10;
             text.position.y = 10;
-            cellContainer.addChild(text);
+            textContainer.addChild(text);
             
             stage.mousedown = stage.touchstart = onCellClick;
 
@@ -111,6 +124,7 @@ game = (function(width, height) {
                     function (data) {
                         mapData = data;
                         setupGameState();
+                        nextTick = CONFIG.GAME_TICK_MS;
                         self.update(0);
                     },
                     function (xhr) {
@@ -164,6 +178,7 @@ game = (function(width, height) {
 
             case InputModes.WAITING_FOR_DEST:
                 var valid = (
+                    (p.x === firstCell.xi && p.y === firstCell.yi) ||
                     (p.x === firstCell.xi-1 && p.y === firstCell.yi) ||
                     (p.x === firstCell.xi && p.y === firstCell.yi-1) ||
                     (p.x === firstCell.xi+1 && p.y === firstCell.yi) ||
@@ -191,30 +206,89 @@ game = (function(width, height) {
         }
     }
     
-    function handleClickComplete(firstCell, secondCell) {
+    function getArmyAtCell(x,y) {
         var army;
         foreachArmy(function(a){
             if (firstCell.xi === a.x && firstCell.yi === a.y) {
                 army = a;
                 return false;
             }
-            return true;
         });
+        return army;
+    }
+    
+    function getOffsetCell(cell, direction, count) {
+        count = count || 1;
+        var newx, newy;
+        switch (direction) {
+            case Cell.UP:
+                newx = cell.xi;
+                newy = cell.yi - count;
+                break;
+            
+            case Cell.RIGHT:
+                newx = cell.xi + count;
+                newy = cell.yi;
+                break;
+                
+            case Cell.DOWN:
+                newx = cell.xi;
+                newy = cell.yi + count;
+                break;
+                
+            case Cell.LEFT:
+                newx = cell.xi - count;
+                newy = cell.yi;            
+                break;
+        }
+        
+        if (newx < 0 || newx >= cells.length || newy < 0 || newy >= cells[0].length) {
+            return null;
+        } else {
+            return cells[newx][newy];
+        }
+    }
+    
+    function handleClickComplete(firstCell, secondCell) {
+        var army = getArmyAtCell(firstCell.xi, firstCell.yi);
         if (army !== undefined) {
             army.x = secondCell.xi;
             army.y = secondCell.yi;
             armiesDirty = true;
-        }        
+            return;
+        }
+
+        var direction;
+        if (secondCell.xi > firstCell.xi) {
+            direction = Cell.RIGHT;
+        } else if (secondCell.xi < firstCell.xi) {
+            direction = Cell.LEFT;
+        } else if (secondCell.yi < firstCell.yi) {
+            direction = Cell.UP;
+        } else if (secondCell.yi > firstCell.yi) {
+            direction = Cell.DOWN;
+        } else {
+            // clicked the same cell twice
+            return;
+        }
+        if (firstCell.flows[PLAYER_INDEX][direction]) {
+            firstCell.flows[PLAYER_INDEX][direction] = false;
+        } else {
+            firstCell.flows[PLAYER_INDEX][direction] = true;
+        }
+        // TODO: Check the reverse flow from the second sell.
+        flowsDirty = true;
     }
 
     function doFPS(timeDelta, timeStamp) {
         if (timeStamp > nextTextUpdate  ||  textDirty) {
             nextTextUpdate = timeStamp + 1000;
             text.setText(
-                mapData.title + "\n"
+                mapData.title + " - "
                 + (frameCount / ((timeStamp - frameStart) / 1000.0)).toFixed(0) + " fps"
-                + ((message != "") ? ("\n" + message) : "")
-                + "\ninputMode: " + inputMode
+                + ((message != "") ? (" - " + message) : "")
+                + " - inputMode: " + inputMode
+                + " - tick: " + tick
             );
             frameCount = 0;
             frameStart = timeStamp;
@@ -223,11 +297,32 @@ game = (function(width, height) {
             frameCount++;
         }
     }
+    
+    function stepCell(cell, tickMS) {
+//        if (cell.anyFlows())
+    }
+    
 
     function stepGameState(timeDelta, timeStamp) {
         if (inputMode === InputModes.DEST_CLICK_FEEDBACK_DELAY  &&  timeStamp >= destClickFeedbackOff) {
             topContainer.removeChildren();
             setInputMode(InputModes.IDLE);
+        }
+        
+        if (timeStamp >= nextTick) {
+            var thisTickMS = timeStamp - nextTick + CONFIG.GAME_TICK_MS;  // actual time for this tick. for lag adjustment etc.
+            nextTick = timeStamp + CONFIG.GAME_TICK_MS;
+            tick++;
+            
+            //foreachBase(function(base) {
+            //
+            //});
+            
+            foreachCell(function(cell) {
+                if (cell.armyStrength > 0  &&  cell.armyOwner >= 0) {
+                    stepCell(cell, thisTickMS);
+                }
+            });
         }
     }
 
@@ -235,6 +330,16 @@ game = (function(width, height) {
         doFPS(timeDelta, timeStamp);
         stepGameState(timeDelta, timeStamp);
 
+        if (cellsDirty) {
+            drawCells();
+            cellsDirty = false;
+        }
+        
+        if (flowsDirty) {
+            drawFlows();
+            flowsDirty = false;
+        }
+        
         if (generatorsDirty) {
             drawGens();
             generatorsDirty = false;
@@ -284,7 +389,7 @@ game = (function(width, height) {
     function foreachCell(fn) {
         for (var x = 0; x < cells.length; x++) {
             for (var y = 0; y < cells[x].length; y++) {
-                if (!fn(cells[x][y])) {
+                if (fn(cells[x][y]) === false) {
                     return;
                 }
             }
@@ -293,7 +398,7 @@ game = (function(width, height) {
     
     function foreachArmy(fn) {
         for (var i = 0; i < armies.length; i++) {
-            if (!fn(armies[i])) {
+            if (fn(armies[i]) === false) {
                 return;
             }
         }
@@ -301,7 +406,7 @@ game = (function(width, height) {
     
     function foreachBase(fn) {
         for (var i = 0; i < generators.length; i++) {
-            if (!fn(generators)) {
+            if (fn(generators) === false) {
                 return;
             }
         }
@@ -311,15 +416,26 @@ game = (function(width, height) {
         if (mapData.generators === undefined) {
             return;
         }
-        generators = Array(mapData.generators);
+//        generators = Array(mapData.generators);
         
         for (var i = 0; i < mapData.generators.length; i++) {
+            var cell = cells[mapData.generators[i].x][mapData.generators[i].y];
+            cell.armyOwner = mapData.generators[i].owner;
+            cell.generatorSpeed = mapData.generators[i].speedFactor;
+            
+/*
+
             generators[i] = new Base(
                 mapData.generators[i].x,
                 mapData.generators[i].y,
                 mapData.generators[i].owner,
                 mapData.generators[i].speedFactor
             );
+            var c = cells[generators[i].x][generators[i].y];
+            c.armyOwner = generators[i].owner;
+            c.armyStrength = 0.0; //1.0;
+*/
+            cellsDirty = true;
         }
     }
 
@@ -334,6 +450,44 @@ game = (function(width, height) {
         }
     }
 
+    function drawCells() {
+        armyContainer.removeChildren();
+        var garmy = new PIXI.Graphics();
+        foreachCell(function(cell) {        
+            if (cell.armyOwner >= 0) {
+                garmy.lineStyle(1, PLAYER_COLORS2[cell.armyOwner], 1.0);
+                garmy.beginFill(PLAYER_COLORS[cell.armyOwner], 1.0);
+                garmy.drawShape(getArmyShape(cell.xi, cell.yi, cell.armyStrength));
+            }
+        });
+        armyContainer.addChild(garmy);
+    };
+    
+    function drawFlow(graphic, startCell, endCell) {
+        var w = 2;//Math.max(CONFIG.CELL_WIDTH / 20, 1);
+        graphic.lineStyle(w, PLAYER_COLORS[PLAYER_INDEX], 0.8);
+        graphic.moveTo(Cell.toCssMidX(startCell.xi), Cell.toCssMidY(startCell.yi));
+        graphic.lineTo(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi));
+        graphic.beginFill(PLAYER_COLORS[PLAYER_INDEX], 0.8);
+        graphic.drawCircle(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi), 2);
+    }
+    
+    function drawFlows() {
+        flowContainer.removeChildren();
+        var g = new PIXI.Graphics;
+        foreachCell(function(cell) {
+            for (var i = 0; i < 4; i++) {
+                if (cell.flows[PLAYER_INDEX][i]) { // we only draw the player's flows
+                    var toCell = getOffsetCell(cell, i);
+                    if (toCell) {
+                        drawFlow(g, cell, toCell);
+                    }
+                }
+            }
+        });
+        flowContainer.addChild(g);
+    }
+    
     function initMap(mapData) {
         // Create the cells
         var graphics = new PIXI.Graphics();
@@ -361,10 +515,10 @@ game = (function(width, height) {
         drawArmies();
     }
     
-    function getBaseShape(base) {
+    function getBaseShape(cell) {
         return new PIXI.Circle(
-            Cell.toCssMidX(base.x),
-            Cell.toCssMidY(base.y),
+            Cell.toCssMidX(cell.xi),
+            Cell.toCssMidY(cell.yi),
             (CONFIG.CELL_WIDTH / 2) -1
         );
     }
@@ -372,24 +526,27 @@ game = (function(width, height) {
     function drawGens() {
         baseContainer.removeChildren();
         var g = new PIXI.Graphics();
-        for (var i = 0; i < generators.length; i++) {
-            g.lineStyle(2, PLAYER_COLORS[generators[i].owner], 1.0);
-            g.drawShape(getBaseShape(generators[i]));
-        }
+        foreachCell(function(cell) {
+            if (cell.generatorSpeed && cell.generatorSpeed > 0.0) {
+                g.lineStyle(2, PLAYER_COLORS[cell.armyOwner], 1.0);
+                g.drawShape(getBaseShape(cell));
+            }
+        });
         baseContainer.addChild(g);
     }
     
-    function getArmyShape(army) {
+    function getArmyShape(x,y, strength) {
         var INSET = 4;
-        return new PIXI.Rectangle(
-            Cell.toCssX(army.x)+INSET,
-            Cell.toCssY(army.y)+INSET,
-            CONFIG.CELL_WIDTH-INSET*2,
-            CONFIG.CELL_HEIGHT-INSET*2
-        );
+        var w = (CONFIG.CELL_WIDTH - INSET * 2) * strength,
+            h = (CONFIG.CELL_HEIGHT - INSET * 2) * strength;
+        var x = Cell.toCssMidX(x) - (w / 2),
+            y = Cell.toCssMidY(y) - (h / 2);
+
+        return new PIXI.Rectangle(x, y, w, h);
     }
     
     function drawArmies() {
+        /*
         armyContainer.removeChildren();
         var g = new PIXI.Graphics();
         for(var i = 0; i < armies.length; i++) {
@@ -399,6 +556,7 @@ game = (function(width, height) {
             g.drawShape(getArmyShape(armies[i]));
         }
         armyContainer.addChild(g);
+ */
     }
 
 

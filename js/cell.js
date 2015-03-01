@@ -2,10 +2,11 @@ function Cell(x,y, pixiRect) {
     this.xi = x;
     this.yi = y;
 
-    this.flows = Array(2);
-    this.flows[0] = Array[4];
-    this.flows[1] = Array[4];
+    this.flows = new Array(2);
+    this.flows[0] = new Array(4);
+    this.flows[1] = new Array(4);
     
+    this.hasBase = false;
     this.armyStrength = 0.0;
     this.armyOwner = -1;
 }
@@ -14,6 +15,11 @@ Cell.FLOW_UP = 0;
 Cell.FLOW_RIGHT = 1;
 Cell.FLOW_DOWN = 2;
 Cell.FLOW_LEFT = 3;
+
+Cell.UP = 0;
+Cell.RIGHT = 1;
+Cell.DOWN = 2;
+Cell.LEFT = 3;
 
 Cell.toCssX = function(x) {
     return x * CONFIG.CELL_WIDTH;
