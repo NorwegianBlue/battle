@@ -6,6 +6,7 @@ CLICK_FEEDBACK_MS = 300;
 RED_INDEX = 0;
 BLUE_INDEX = 1;
 
+ENEMY_INDEX = 0;
 PLAYER_INDEX = 1;
 
 PLAYER_COLORS = [0xee0000, 0x0000ff];
@@ -257,7 +258,15 @@ game = (function(width, height) {
         } else if (secondCell.yi > firstCell.yi) {
             direction = Cell.DOWN;
         } else {
-            // clicked the same cell twice
+            // clicked the same cell twice - erase all flows
+            for (var i = 0; i < 4; i++) {
+                firstCell.flows[PLAYER_INDEX][i] = false;
+                var adjacent = getOffsetCell(firstCell, i);
+                if (adjacent) {
+                    adjacent.flows[PLAYER_INDEX][(i+2)%4] = false;
+                }
+            }
+            flowsDirty = true;
             return;
         }
         if (firstCell.flows[PLAYER_INDEX][direction]) {
@@ -265,7 +274,14 @@ game = (function(width, height) {
         } else {
             firstCell.flows[PLAYER_INDEX][direction] = true;
         }
-        // TODO: Check the reverse flow from the second sell.
+
+        // If the destination cell already has a flow back to the origin cell, remove that flow.
+        direction = (direction + 2) % 4; // reverse direction
+        
+        if (secondCell.flows[PLAYER_INDEX][direction]) {
+            secondCell.flows[PLAYER_INDEX][direction] = false;
+        }
+        
         flowsDirty = true;
     }
 
@@ -287,7 +303,7 @@ game = (function(width, height) {
         }
     }
     
-    function flowCell(cell, tickMS) {
+    function flowCell_simple(cell, tickMS) {
         for (var direction = 0; direction < 4; direction++ ) {
           if (cell.flows[PLAYER_INDEX][direction]) {
               var dest = getOffsetCell(cell, direction);
@@ -312,6 +328,95 @@ game = (function(width, height) {
         }
     }
     
+    function flowCell(cell, tickMS) {
+        // Step 1: Determine how many flows leave the cell
+        // Step 2: Split CONFIG.FLOW_RATE evenly
+        // Step 2a: If a dest cell is a flow rate limiter or accelerator, apply that to the relevant flow.
+        
+        var flowcount = 0.0;
+        for (var direction = 0; direction < 4; direction++) {
+            if (cell.flows[PLAYER_INDEX][direction]) {
+                var dest = getOffsetCell(cell, direction);
+                if (dest.armyStrength < 1.0  &&  dest.armyOwner !== ENEMY_INDEX) {
+                    flowcount = flowcount + 1.0;
+                }
+            }
+        }
+        
+        var totalFlowOut = 0.0;
+        var flowPer =  Math.min(CONFIG.FLOW_RATE, cell.armyStrength) / flowcount;
+        
+        for (var direction = 0; direction < 4; direction++) {
+            if (cell.flows[PLAYER_INDEX][direction]) {
+                var dest = getOffsetCell(cell, direction);
+                if (dest.armyStrength >= 1.0  ||  dest.armyOwner === ENEMY_INDEX) {
+                    // can't flow anymore
+                } else {
+                    if (dest.armyOwner < 0) {
+                        dest.armyOwner = PLAYER_INDEX;
+                    }
+                    
+                    var flowedAmount = flowPer;
+                    if (flowedAmount > (1.0 - dest.armyStrength)) {
+                        flowedAmount = (1.0 - dest.armyStrength);
+                    }
+                    dest.armyStrength += flowedAmount;                    
+                    totalFlowOut += flowedAmount;
+                }
+            }
+        }
+        if (totalFlowOut > 0.0) {
+            cell.armyStrength -= totalFlowOut;
+        }
+    }
+    
+    function stepCombat(cell) {
+        // Check if any flows in
+        // If flows in, total up army strength in (attackers)
+        // Apply to army strength in cell (defender)
+        
+        var attackingCells = [];
+        
+        // Find all attacking cells
+        for(var d = 0; d < 4; d++) {
+            var adjacent = getOffsetCell(cell, d);
+            if (adjacent  &&  adjacent.armyOwner !== cell.armyOwner  &&  adjacent.armyStrength > 0  && adjacent.anyFlows()) {
+                var opposite_d = (d + 2) % 4;                
+                if (adjacent.flows[adjacent.armyOwner][opposite_d]) {
+                    attackingCells.push(adjacent);
+                }
+            }
+        }
+        
+        if (attackingCells.length > 0) {
+            var totalAttack = 0.0;
+            for (var i = 0; i < attackingCells.length; i++) {
+                totalAttack += attackingCells[i].armyStrength;
+            }
+            
+            // Larger army reduces its own casualties, but doesn't increase enemy casualties
+            var defenderCasualties = (totalAttack * CONFIG.CASUALTY_FACTOR) * Math.min(totalAttack / cell.armyStrength, 1);
+            var attackerCasualties = (cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min(cell.armyStrength / totalAttack, 1);
+            
+            cell.armyStrength -= defenderCasualties;
+            if (cell.armyStrength < 0.0) {
+                cell.armyStrength = 0.0;
+                cell.armyOwner = attackingCells[0].armyOwner;
+                if (cell.generatorSpeed > 0.0) {
+                    generatorsDirty = true;
+                }
+            }
+            
+            var a = attackerCasualties / attackingCells.length;
+            for (var i = 0; i < attackingCells.length; i++) {
+                attackingCells[i].armyStrength -= a;
+                if (attackingCells[i].armyStrength <= 0.0) {
+                    attackingCells[i].armyStrength = 0.0;
+                    attackingCells[i].armyOwner = -1;
+                }
+            }
+        }
+    }
 
     function stepGameState(timeDelta, timeStamp) {
         if (inputMode === InputModes.DEST_CLICK_FEEDBACK_DELAY  &&  timeStamp >= destClickFeedbackOff) {
@@ -333,6 +438,11 @@ game = (function(width, height) {
                     flowCell(cell, thisTickMS);
                 }
                 return true;
+            });
+            
+            // fight
+            foreachCell(function(cell) {
+                stepCombat(cell);
             });
             cellsDirty = true;
         }
@@ -405,10 +515,11 @@ game = (function(width, height) {
         if (mapData.armies === undefined) {
             return;
         }
-        armies = Array(mapData.armies);
-
+        
         for (var i = 0; i < mapData.armies.length; i++) {
-            armies[i] = new Army(mapData.armies[i].x, mapData.armies[i].y, mapData.armies[i].owner);
+            var cell = cells[mapData.armies[i].x][mapData.armies[i].y];
+            cell.armyOwner = mapData.armies[i].owner;
+            cell.armyStrength = 1.0;
         }
     }
 
