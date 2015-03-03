@@ -11,6 +11,7 @@ PLAYER_INDEX = 1;
 
 PLAYER_COLORS = [0xee0000, 0x0000ff];
 PLAYER_COLORS2 = [0xff9999, 0x9999ff];
+PLAYER_COLOR_FLOW = [0xff6666, 0x6666ff];
 
 InputModes = Object.freeze({
     IDLE: 0,
@@ -83,8 +84,8 @@ game = (function(width, height) {
 
             stage.addChild(cellContainer);
             stage.addChild(baseContainer);
-            stage.addChild(flowContainer);
             stage.addChild(armyContainer);
+            stage.addChild(flowContainer);
             stage.addChild(textContainer);
             stage.addChild(topContainer);
 
@@ -303,31 +304,6 @@ game = (function(width, height) {
         }
     }
     
-    function flowCell_simple(cell, tickMS) {
-        for (var direction = 0; direction < 4; direction++ ) {
-          if (cell.flows[PLAYER_INDEX][direction]) {
-              var dest = getOffsetCell(cell, direction);
-              if (dest.armyStrength >= 1.0) {
-                  // can't flow anymore
-              } else {
-                  if (dest.armyOwner < 0) {
-                    dest.armyOwner = PLAYER_INDEX;
-                  }
-                  
-                  var flowedAmount = CONFIG.FLOW_RATE;
-                  if (flowedAmount > cell.armyStrength) {
-                      flowedAmount = cell.armyStrength;
-                  }
-                  if (flowedAmount > (1.0 - dest.armyStrength)) {
-                      flowedAmount = (1.0 - dest.armyStrength);
-                  }
-                  dest.armyStrength = dest.armyStrength + flowedAmount;
-                  cell.armyStrength = cell.armyStrength - flowedAmount;
-              }
-          }
-        }
-    }
-    
     function flowCell(cell, tickMS) {
         // Step 1: Determine how many flows leave the cell
         // Step 2: Split CONFIG.FLOW_RATE evenly
@@ -342,7 +318,7 @@ game = (function(width, height) {
                 }
             }
         }
-        
+
         var totalFlowOut = 0.0;
         var flowPer =  Math.min(CONFIG.FLOW_RATE, cell.armyStrength) / flowcount;
         
@@ -395,8 +371,8 @@ game = (function(width, height) {
             }
             
             // Larger army reduces its own casualties, but doesn't increase enemy casualties
-            var defenderCasualties = (totalAttack * CONFIG.CASUALTY_FACTOR) * Math.min(totalAttack / cell.armyStrength, 1);
-            var attackerCasualties = (cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min(cell.armyStrength / totalAttack, 1);
+            var defenderCasualties = (totalAttack * CONFIG.CASUALTY_FACTOR) * Math.min((totalAttack / cell.armyStrength)*0.50, 1);
+            var attackerCasualties = (cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min((cell.armyStrength / totalAttack)*0.50, 1);
             
             cell.armyStrength -= defenderCasualties;
             if (cell.armyStrength < 0.0) {
@@ -537,12 +513,12 @@ game = (function(width, height) {
     };
     
     function drawFlow(graphic, startCell, endCell) {
-        var w = 2;//Math.max(CONFIG.CELL_WIDTH / 20, 1);
-        graphic.lineStyle(w, PLAYER_COLORS[PLAYER_INDEX], 0.8);
+        var w = 3;//Math.max(CONFIG.CELL_WIDTH / 20, 1);
+        graphic.lineStyle(w, PLAYER_COLOR_FLOW[PLAYER_INDEX], 0.8);
         graphic.moveTo(Cell.toCssMidX(startCell.xi), Cell.toCssMidY(startCell.yi));
         graphic.lineTo(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi));
-        graphic.beginFill(PLAYER_COLORS[PLAYER_INDEX], 0.8);
-        graphic.drawCircle(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi), 2);
+        graphic.beginFill(PLAYER_COLOR_FLOW[PLAYER_INDEX], 0.8);
+        graphic.drawCircle(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi), 3);
     }
     
     function drawFlows() {
