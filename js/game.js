@@ -1,4 +1,5 @@
 var message = "";
+var deviceReadyCalled = false;
 
 CLICK_FEEDBACK_MS = 300;
 
@@ -20,7 +21,10 @@ InputModes = Object.freeze({
 });
 
 game = (function(width, height) {
-    var assetsToLoad = [];
+    var assetsToLoad = [
+        "asset/tileable_grass_00.png",
+        "asset/tileable_grass_01.png"
+    ];
 
     var lastTime = 0;
     var nextTextUpdate = 2000; // 10 seconds
@@ -33,6 +37,7 @@ game = (function(width, height) {
     var stage;
     var renderer;
 
+    var backgroundContainer;
     var cellContainer;
     var baseContainer;
     var armyContainer;
@@ -71,6 +76,7 @@ game = (function(width, height) {
             renderer.view.id = "gamecanvas";
             renderer.view.style.display = "block";
 
+            backgroundContainer = new PIXI.DisplayObjectContainer();
             cellContainer = new PIXI.DisplayObjectContainer();
             baseContainer = new PIXI.DisplayObjectContainer();
             armyContainer = new PIXI.DisplayObjectContainer();
@@ -82,6 +88,7 @@ game = (function(width, height) {
             window.addEventListener("resize", doResize);
             doResize();
 
+            stage.addChild(backgroundContainer);
             stage.addChild(cellContainer);
             stage.addChild(baseContainer);
             stage.addChild(armyContainer);
@@ -295,6 +302,8 @@ game = (function(width, height) {
                 + ((message != "") ? (" - " + message) : "")
                 + " - inputMode: " + inputMode
                 + " - tick: " + tick
+                + "\n" + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "GooglePlayGamesPlugin exists" : "GooglePlayGamesPlugin does not exist")
+                + "\n" + (deviceReadyCalled ? "deviceready called" : "deviceready not called")
             );
             frameCount = 0;
             frameStart = timeStamp;
@@ -538,9 +547,14 @@ game = (function(width, height) {
     }
     
     function initMap(mapData) {
+        // Create the background
+        var texture = new PIXI.Texture.fromImage("asset/tileable_grass_00.png");
+        var tilingSprite = new PIXI.TilingSprite(texture, window.innerWidth, window.innerHeight);
+        backgroundContainer.addChild(tilingSprite);
+        
         // Create the cells
         var graphics = new PIXI.Graphics();
-        graphics.lineStyle(1, mapData.lineColor, 1.0);
+        graphics.lineStyle(1, mapData.lineColor, 0.15);
         cells = Array(Cell.prototype.XHi);
         for (var x = 0; x < Cell.prototype.XHi; x++) {
             cells[x] = Array(Cell.prototype.YHi);
@@ -550,11 +564,11 @@ game = (function(width, height) {
                 for (var i = 0; i < 3; i++) {
                     rgb[i] = mapData.minColor[i] + (Math.random() * (mapData.maxColor[i] - mapData.minColor[i]));
                 }
-                graphics.beginFill((~~(rgb[0] << 16)) | (~~(rgb[1] << 8)) | ~~rgb[2], 1.0);
+                //graphics.beginFill((~~(rgb[0] << 16)) | (~~(rgb[1] << 8)) | ~~rgb[2], 1.0);
                 graphics.drawRect(x * CONFIG.CELL_WIDTH, y * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
             }
         }
-        cellContainer.addChildAt(graphics, 0);
+        cellContainer.addChild(graphics);
 
         // Create the bases
         initGens();
@@ -598,7 +612,9 @@ game = (function(width, height) {
         if (assetsToLoad.length > 0) {
             var loader = new PIXI.AssetLoader(assetsToLoad);
             loader.onComplete = callback;
-            loader.onProgress = function() {};
+            loader.onProgress = function(e) {
+                console.log(e);
+            };
             loader.load();
         } else {
             callback();
@@ -612,24 +628,29 @@ game = (function(width, height) {
 
         var newWidthToHeight = newWidth / newHeight;
 
-        var newcss = "";
-        if (newWidthToHeight > widthToHeight) {
-            // window width is too wide relative to desired game width
+        if (newWidthToHeight > widthToHeight) { // window width is too wide relative to desired game width
             newWidth = newHeight * widthToHeight;
         } else { // window height is too high relative to desired game height
             newHeight = newWidth / widthToHeight;
         }
-        newcss += "height: " + newHeight + "px; width: " + newWidth + "px; ";
-        newcss += "margin-top: " + ((window.innerHeight - newHeight) / 2) + "px; ";
-        newcss += "margin-left: " + ((window.innerWidth - newWidth) / 2) + "px;";
 
-        document.getElementById("gamearea").style.cssText += newcss;
+        document.getElementById("gamearea").style.cssText +=
+            "height: " + newHeight + "px; width: " + newWidth + "px; "
+            + "margin-top: " + ((window.innerHeight - newHeight) / 2) + "px; "
+            + "margin-left: " + ((window.innerWidth - newWidth) / 2) + "px;";
     }
 
     function setupGameState() {
         initMap(mapData);
     }
 
+    document.addEventListener("deviceready", function() {
+        console.log("deviceready");
+        deviceReadyCalled = true;
+        if (typeof GooglePlayGamesPlugin !== 'undefined') {
+            GooglePlayGamesPlugin.connect();
+        }
+    }, false);    
 
     return self.init();
 })(CONFIG.X_RESOLUTION,

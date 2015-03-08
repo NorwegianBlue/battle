@@ -7,4 +7,7 @@
 <name>Battle</name>
 <content src="index.html"/>
 <access origin="*"/>
-<!--creationInfo:{"src":"","projectTypeName":"com.intel.xdk.projecttype.webapp"}--></widget>
+<intelxdk:plugin intelxdk:name="Google Play* Games Services" intelxdk:value="com.intel.googleplaygamesplugin">
+<intelxdk:param intelxdk:name="GPSAPPID" intelxdk:value="928253533820"/></intelxdk:plugin>
+<intelxdk:plugin intelxdk:name="Device" intelxdk:value="org.apache.cordova.device" intelxdk:version="0.2.13"/>
+<!--creationInfo:{"src":"","projectTypeName":"com.intel.xdk.projecttype.jsapp"}--></widget>
