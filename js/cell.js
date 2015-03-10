@@ -52,8 +52,8 @@ Cell.fromCss = function(x,y) {
 }
 
 
-Cell.prototype.XHi = ~~(CONFIG.X_RESOLUTION / CONFIG.CELL_WIDTH);
-Cell.prototype.YHi = ~~(CONFIG.Y_RESOLUTION / CONFIG.CELL_HEIGHT);
+Cell.XHi = ~~(CONFIG.X_RESOLUTION / CONFIG.CELL_WIDTH);
+Cell.YHi = ~~(CONFIG.Y_RESOLUTION / CONFIG.CELL_HEIGHT);
 
 Cell.prototype.xpos = function() {
     return this.xi * CONFIG.CELL_WIDTH;

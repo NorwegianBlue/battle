@@ -6,9 +6,7 @@ CLICK_FEEDBACK_MS = 300;
 /* Constants */
 RED_INDEX = 0;
 BLUE_INDEX = 1;
-
-ENEMY_INDEX = 0;
-PLAYER_INDEX = 1;
+PLAYER_COLOR_INDEX = [RED_INDEX, BLUE_INDEX];
 
 PLAYER_COLORS = [0xee0000, 0x0000ff];
 PLAYER_COLORS2 = [0xff9999, 0x9999ff];
@@ -66,6 +64,10 @@ game = (function(width, height) {
     var firstCell, secondCell;
     var destClickFeedbackOff;
 
+    var ENEMY_INDEX;
+    var PLAYER_INDEX;
+
+
     var self = {
 
         init: function () {
@@ -84,9 +86,6 @@ game = (function(width, height) {
             textContainer = new PIXI.DisplayObjectContainer();
             
             topContainer = new PIXI.DisplayObjectContainer();
-
-            window.addEventListener("resize", doResize);
-            doResize();
 
             stage.addChild(backgroundContainer);
             stage.addChild(cellContainer);
@@ -123,6 +122,14 @@ game = (function(width, height) {
         },
 
         run: function () {
+            PLAYER_INDEX = CONFIG.PLAYER_ID;
+            ENEMY_INDEX = PLAYER_INDEX === 0 ? 1 : 0;
+            console.log("PLAYER_INDEX=" + PLAYER_INDEX);
+            console.log("ENEMY_INDEX=" + ENEMY_INDEX);
+
+            window.addEventListener("resize", doResize);
+            doResize();
+
             loadAssets(function () {
                 document.getElementById("gamearea").appendChild(renderer.view);
 
@@ -200,6 +207,9 @@ game = (function(width, height) {
                     topContainer.addChild(g);
                     setInputMode(InputModes.DEST_CLICK_FEEDBACK_DELAY);
                     handleClickComplete(firstCell, secondCell);
+                } else {
+                    topContainer.removeChildren();
+                    setInputMode(InputModes.IDLE);
                 }
                 break;
 
@@ -267,6 +277,10 @@ game = (function(width, height) {
             direction = Cell.DOWN;
         } else {
             // clicked the same cell twice - erase all flows
+
+            var event = netevents.flowclear(firstCell);
+            net.sendEvent(event);
+
             for (var i = 0; i < 4; i++) {
                 firstCell.flows[PLAYER_INDEX][i] = false;
                 var adjacent = getOffsetCell(firstCell, i);
@@ -300,8 +314,11 @@ game = (function(width, height) {
                 mapData.title + " - "
                 + (frameCount / ((timeStamp - frameStart) / 1000.0)).toFixed(0) + " fps"
                 + ((message != "") ? (" - " + message) : "")
-                + " - inputMode: " + inputMode
-                + " - tick: " + tick
+                + " - im: " + inputMode
+                + " - plyr: " + PLAYER_INDEX
+                + " - tk: " + tick
+                + " - pr: " + window.devicePixelRatio
+                + " (" + window.innerWidth + "," + window.innerHeight + ")" 
                 + "\n" + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "GooglePlayGamesPlugin exists" : "GooglePlayGamesPlugin does not exist")
                 + "\n" + (deviceReadyCalled ? "deviceready called" : "deviceready not called")
             );
@@ -332,7 +349,7 @@ game = (function(width, height) {
         var flowPer =  Math.min(CONFIG.FLOW_RATE, cell.armyStrength) / flowcount;
         
         for (var direction = 0; direction < 4; direction++) {
-            if (cell.flows[PLAYER_INDEX][direction]) {
+            if (cell.armyOwner === PLAYER_INDEX  &&  cell.flows[PLAYER_INDEX][direction]) {
                 var dest = getOffsetCell(cell, direction);
                 if (dest.armyStrength >= 1.0  ||  dest.armyOwner === ENEMY_INDEX) {
                     // can't flow anymore
@@ -519,14 +536,14 @@ game = (function(width, height) {
             }
         });
         armyContainer.addChild(garmy);
-    };
+    }
     
-    function drawFlow(graphic, startCell, endCell) {
+    function drawFlow(graphic, player, startCell, endCell) {
         var w = 3;//Math.max(CONFIG.CELL_WIDTH / 20, 1);
-        graphic.lineStyle(w, PLAYER_COLOR_FLOW[PLAYER_INDEX], 0.8);
+        graphic.lineStyle(w, PLAYER_COLOR_FLOW[player], 0.8);
         graphic.moveTo(Cell.toCssMidX(startCell.xi), Cell.toCssMidY(startCell.yi));
         graphic.lineTo(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi));
-        graphic.beginFill(PLAYER_COLOR_FLOW[PLAYER_INDEX], 0.8);
+        graphic.beginFill(PLAYER_COLOR_FLOW[player], 0.8);
         graphic.drawCircle(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi), 3);
     }
     
@@ -534,11 +551,22 @@ game = (function(width, height) {
         flowContainer.removeChildren();
         var g = new PIXI.Graphics;
         foreachCell(function(cell) {
+            if (CONFIG.SHOW_ENEMY_FLOWS) {
+                for (var i = 0; i < 4; i++) {
+                    if (cell.flows[ENEMY_INDEX][i]) {
+                        var toCell = getOffsetCell(cell, i);
+                        if (toCell) {
+                            drawFlow(g, ENEMY_INDEX, cell, toCell);
+                        }
+                    }
+                }
+            }
+
             for (var i = 0; i < 4; i++) {
-                if (cell.flows[PLAYER_INDEX][i]) { // we only draw the player's flows
+                if (cell.flows[PLAYER_INDEX][i]) {
                     var toCell = getOffsetCell(cell, i);
                     if (toCell) {
-                        drawFlow(g, cell, toCell);
+                        drawFlow(g, PLAYER_INDEX, cell, toCell);
                     }
                 }
             }
@@ -555,10 +583,10 @@ game = (function(width, height) {
         // Create the cells
         var graphics = new PIXI.Graphics();
         graphics.lineStyle(1, mapData.lineColor, 0.15);
-        cells = Array(Cell.prototype.XHi);
-        for (var x = 0; x < Cell.prototype.XHi; x++) {
-            cells[x] = Array(Cell.prototype.YHi);
-            for (var y = 0; y < Cell.prototype.YHi; y++) {
+        cells = Array(Cell.XHi);
+        for (var x = 0; x < Cell.XHi; x++) {
+            cells[x] = Array(Cell.YHi);
+            for (var y = 0; y < Cell.YHi; y++) {
                 cells[x][y] = new Cell(x, y);
                 var rgb = Array(3);
                 for (var i = 0; i < 3; i++) {
@@ -613,7 +641,7 @@ game = (function(width, height) {
             var loader = new PIXI.AssetLoader(assetsToLoad);
             loader.onComplete = callback;
             loader.onProgress = function(e) {
-                console.log(e);
+                // console.log(e);
             };
             loader.load();
         } else {
@@ -622,6 +650,7 @@ game = (function(width, height) {
     }
 
     function doResize(event) {
+        alert("doResize");
         var widthToHeight = width/height;
         var newWidth = window.innerWidth;
         var newHeight = window.innerHeight;
@@ -652,6 +681,6 @@ game = (function(width, height) {
         }
     }, false);    
 
-    return self.init();
+    return self;
 })(CONFIG.X_RESOLUTION,
    CONFIG.Y_RESOLUTION);

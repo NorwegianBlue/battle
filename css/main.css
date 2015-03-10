@@ -2,12 +2,16 @@ body {
     background-color: #000;
     margin: 0;
     overflow: hidden;
-    font-family: sans-serif;
+}
+
+.page {
+    color: black;
 }
 
 #gamearea {
     position: absolute;
-    background-color: green;
+    background-color: black;
+    display: none;
 }
 
 #gamecanvas {
@@ -15,11 +19,52 @@ body {
     height: 100%;
 }
 
-label {
-    color: white;
+/*
+@media only screen and (min-device-pixel-ratio: 1.5),
+       only screen and (min-resolution: 192ddpx) {
+    .xmodal-header {
+        font-size: 48px;
+    }
+    #xserver {
+        padding: 10%;
+        font-size: 24px;
+    }
+    #xserver input {
+        font-size: 24px;
+        height: 48px;
+    }
+}
+*/
+
+/*
+#server {
+    padding: 10%;
+}
+*/
+
+.modal-footer .btn {
+    width: 100%;
+    font-size: 1.5em;
 }
 
-button {
-    background-color: blue;
+#xserver {
+    width: 100%;
+    height: 100%;
+    background-color: white;
+    font-size: 4em;
+}
+
+#xserver button {
+    font-size: 1em;
+    width: 25%;
+}
+
+.modal-header {
+    background-color: #337ab7;
     color: white;
+    font-size: 2em;
+}
+
+.modal-body {
+    padding: 15px 25px;
 }

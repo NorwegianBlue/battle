@@ -2,25 +2,61 @@
 <html>
 <head lang="en">
     <meta charset="UTF-8">
+    <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
     <link rel="stylesheet" type="text/css" href="css/main.css">
     <title>Battle</title>
-    <style>
-        label {
-            color: white;
-        }
-    </style>
 </head>
 <body>
-    <div id="server">
-        <label for="serverAddress">Server Address</label>
-        <input id="serverAddress" type="text" />
-        
-        <button id="submitBtn" type="submit">OK</button>
+    <div class="page" id="server">
+        <div class="modal-content">
+            <div class="modal-header">
+                Game Server
+            </div>
+            <div class="modal-body">
+                <form class="form-horizontal">
+                    <div class="form-group">
+                        <label class="control-label col-xs-2" for="serverAddress">Server</label>
+                        <div class="col-xs-10">
+                            <input class="form-control" id="serverAddress" type="text" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="control-label col-xs-2" for="nickname">Nickname</label>
+                        <div class="col-xs-10">
+                            <input class="form-control" id="nickname" type="text" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="control-label col-xs-2">Player</label>
+                        <div class="col-xs-10">
+                            <label>
+                                <input type="radio" id="playerTop" name="player" value="top" class="btn btn-default"> Top/Red </input>
+                            </label>
+                            <label>
+                                <input type="radio" id="playerBottom" name="player" value="bottom" class="btn btn-default" checked="checked"> Bottom/Blue </input>
+                            </label>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="submitBtn" type="button">OK</button>
+            </div>
+        </div>
     </div>
-    <div id="gamearea" style="visibility: hidden;">
+    
+    <div  class="page" id="connecting">
+        Connecting...
     </div>
-    <script type="text/javascript">
-        
+    
+    <div  class="page" id="gamearea">
+    </div>
+    
+    <script src="js/utils.js"></script>
+
+    <script type="text/javascript">    
         CELLRES = 64;
         
         CONFIG = {
@@ -28,6 +64,8 @@
             CELL_HEIGHT: CELLRES,
             X_RESOLUTION: 8*CELLRES +1,
             Y_RESOLUTION: 12*CELLRES +1,
+
+            SHOW_ENEMY_FLOWS: false,
             
             GAME_TICK_MS: 50,
             GENERATOR_SPEED: 0.01,
@@ -35,8 +73,10 @@
             CASUALTY_FACTOR: 0.015,
             
             SERVER_PORT: 5000,
-            SERVER_ADDRESS: "192.168.1.198"
-            
+            SERVER_ADDRESS: "192.168.1.198",
+            NICKNAME: "Blue Team",
+            PLAYER_ID: -1,
+            PLAYER_UUID: UUID()
         };
         
         RENDER_OPTIONS = {
@@ -48,16 +88,53 @@
     <script src="cordova.js"></script>
     <script src="lib/pixi.dev.js"></script>
     
-    <script src="js/utils.js"></script>
+    <script src="js/net.js"></script>
     <script src="js/army.js"></script>
     <script src="js/base.js"></script>
     <script src="js/cell.js"></script>
+    <script src="js/netevents.js"></script>
     <script src="js/game.js"></script>
 
     <script type="text/javascript">
+        Array.prototype.forEach.call(document.getElementsByClassName("page"), function(p) {
+            p.style.display = "none";
+        });
+        
+        if (typeof device === 'undefined') {
+            document.getElementById("nickname").value = CONFIG.NICKNAME;
+        } else {
+            document.getElementById("nickname").value = device.model;
+        }
+        
         document.getElementById("serverAddress").value = CONFIG.SERVER_ADDRESS;
         
-        //        game.run();
+        document.getElementById("submitBtn").onclick = function() {
+            CONFIG.SERVER_ADDRESS = document.getElementById("serverAddress").value;
+            CONFIG.NICKNAME = document.getElementById("nickname").value;
+            if (document.getElementById("playerTop").checked) {
+                CONFIG.PLAYER_ID = 0;
+            } else {
+                CONFIG.PLAYER_ID = 1;
+            }
+            
+            document.getElementById("server").style.display = "none";
+            
+            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
+            
+            window.setTimeout(function() {
+                s.send("Boo!\n");
+                // s.close();
+            }, 5000);
+            
+            game.init().run();
+            // game.run();
+
+            window.setTimeout(function() {
+                document.getElementById("gamearea").style.display = "block";
+            }, 250);
+        };
+        
+        document.getElementById("server").style.display = "block";
     </script>
 </body>
 </html>
