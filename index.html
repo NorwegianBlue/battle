@@ -51,7 +51,9 @@
         Connecting...
     </div>
     
-    <div  class="page" id="gamearea">
+    <div class="page" id="gamearea">
+        <button type="button" id="btnReset">Reset</button>
+        <button type="button" id="btnPushSync">Push Sync</button>        
     </div>
     
     <script src="js/utils.js"></script>
@@ -65,7 +67,7 @@
             X_RESOLUTION: 8*CELLRES +1,
             Y_RESOLUTION: 12*CELLRES +1,
 
-            SHOW_ENEMY_FLOWS: false,
+            SHOW_ENEMY_FLOWS: true,
             
             GAME_TICK_MS: 50,
             GENERATOR_SPEED: 0.01,
@@ -74,7 +76,7 @@
             
             SERVER_PORT: 5000,
             SERVER_ADDRESS: "192.168.1.198",
-            NICKNAME: "Blue Team",
+            NICKNAME: null,
             PLAYER_ID: -1,
             PLAYER_UUID: UUID()
         };
@@ -99,15 +101,9 @@
         Array.prototype.forEach.call(document.getElementsByClassName("page"), function(p) {
             p.style.display = "none";
         });
-        
-        if (typeof device === 'undefined') {
-            document.getElementById("nickname").value = CONFIG.NICKNAME;
-        } else {
-            document.getElementById("nickname").value = device.model;
-        }
-        
-        document.getElementById("serverAddress").value = CONFIG.SERVER_ADDRESS;
-        
+
+        p = getUrlParams(location.search);
+
         document.getElementById("submitBtn").onclick = function() {
             CONFIG.SERVER_ADDRESS = document.getElementById("serverAddress").value;
             CONFIG.NICKNAME = document.getElementById("nickname").value;
@@ -116,25 +112,54 @@
             } else {
                 CONFIG.PLAYER_ID = 1;
             }
-            
-            document.getElementById("server").style.display = "none";
-            
-            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
-            
-            window.setTimeout(function() {
-                s.send("Boo!\n");
-                // s.close();
-            }, 5000);
-            
-            game.init().run();
-            // game.run();
 
-            window.setTimeout(function() {
-                document.getElementById("gamearea").style.display = "block";
-            }, 250);
+            document.getElementById("server").style.display = "none";
+
+            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
+            game.init().run();
         };
         
-        document.getElementById("server").style.display = "block";
+        document.getElementById("btnReset").onclick = function() {
+        };
+        
+        document.getElementById("btnPushSync").onclick = function() {
+            game.pushSync();
+        };
+
+        if (p['server'] !== undefined) {
+            CONFIG.SERVER_ADDRESS = p['server'];
+        }
+
+        if (p['team'] !== undefined) {
+            CONFIG.PLAYER_ID = parseInt(p['team'], 10);
+        }
+
+        if (p['nickname'] !== undefined) {
+            CONFIG.NICKNAME = p['nickname'];
+        }
+
+        document.getElementById("playerTop").checked = (CONFIG.PLAYER_ID === 0);
+        document.getElementById("playerBottom").checked = (CONFIG.PLAYER_ID !== 0);
+
+        document.getElementById("serverAddress").value = CONFIG.SERVER_ADDRESS;
+
+        if (CONFIG.NICKNAME === null) {
+            if (typeof device === 'undefined') {
+                document.getElementById("nickname").value = CONFIG.NICKNAME;
+            } else {
+                document.getElementById("nickname").value = device.model;
+            }
+        } else {
+            document.getElementById("nickname").value = CONFIG.NICKNAME;
+        }
+
+        if (p['run'] !== undefined) {
+            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
+            game.init().run();
+            document.getElementById("gamearea").style.display = "block";
+        } else {
+            document.getElementById("server").style.display = "block";
+        }
     </script>
 </body>
 </html>

@@ -6,6 +6,7 @@ body {
 
 .page {
     color: black;
+    display: none;
 }
 
 #gamearea {

@@ -5,7 +5,7 @@ netevents = (function() {
 
         netconnect: function() {
             var e = new NetEvent('connect');
-            this.playeruuid = CONFIG.PLAYER_UUID;
+            e.playeruuid = CONFIG.PLAYER_UUID;
             return e;
         },
 
@@ -13,16 +13,23 @@ netevents = (function() {
 
         },
 
-        flowconnect: function(startCell, endCell) {
-            var e = new NetEvent('flowconnect');
-            e.start = {x: startCell.xi, y: startCell.yi};
-            e.end = {x:endCell.xi, y: endCell.yi};
+        pushsync: function(game) {
+            var e = new NetEvent('pushsync');
+            e.playeruuid = CONFIG.PLAYER_UUID;
+            e.gameState = game.getState();
             return e;
         },
 
-        flowclear: function (cell) {
+        flowconnect: function(x1,y1, x2,y2) {
+            var e = new NetEvent('flowconnect');
+            e.start = {x: x1, y: y1};
+            e.end = {x: x2, y: y2};
+            return e;
+        },
+
+        flowclear: function (x,y) {
             var e = new NetEvent('flowclear');
-            e.cell = {x: cell.xi, y: cell.yi};
+            e.cell = {x: x, y: y};
             return e;
         },
 

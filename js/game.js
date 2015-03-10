@@ -18,6 +18,15 @@ InputModes = Object.freeze({
     DEST_CLICK_FEEDBACK_DELAY: 2
 });
 
+gameState = (function() {
+    var self = {
+        cells: null,
+        cellsDirty: false
+    };
+
+    return self;
+})();
+
 game = (function(width, height) {
     var assetsToLoad = [
         "asset/tileable_grass_00.png",
@@ -49,9 +58,6 @@ game = (function(width, height) {
 //    var message;
     var textDirty = false;
 
-    var cells;
-    var cellsDirty = false;
-
     var flowsDirty = false;
     
     var generators = [];
@@ -67,6 +73,7 @@ game = (function(width, height) {
     var ENEMY_INDEX;
     var PLAYER_INDEX;
 
+    var cells = gameState.cells;
 
     var self = {
 
@@ -151,6 +158,92 @@ game = (function(width, height) {
             var delta = now - lastTime;
             gameLoop(delta, now);
             lastTime = now;
+        },
+
+        getState: function() {
+            return {
+                cells: cells
+            }
+        },
+
+        pushSync: function() {
+            var e = netevents.pushsync(self);
+            net.sendEvent(e);
+        },
+
+        handleMessage: function(e) {
+            switch(e.action) {
+                case "pushsync":
+                    cells = e.gameState.cells;
+                    [].forEach.call(cells, function(a) {
+                        [].forEach.call(a, function(c) {
+                            c.__proto__ = Cell.prototype;
+                        });
+                    });
+                    gameState.cellsDirty = true;
+                    flowsDirty = true;
+                    generatorsDirty = true;
+                    textDirty = true;
+
+                    break;
+
+                case "flowconnect":
+                    self.flowConnect(e.playerid, e.start.x, e.start.y, e.end.x, e.end.y);
+                    break;
+
+                case "flowclear":
+                    self.flowClear(e.playerid, e.cell.x, e.cell.y);
+                    break;
+            }
+        },
+
+        flowConnect: function(team, x1,y1, x2,y2) {
+            var firstCell = cells[x1][y1];
+            var secondCell = cells[x2][y2];
+
+            var direction;
+            if (secondCell.xi > firstCell.xi) {
+                direction = Cell.RIGHT;
+            } else if (secondCell.xi < firstCell.xi) {
+                direction = Cell.LEFT;
+            } else if (secondCell.yi < firstCell.yi) {
+                direction = Cell.UP;
+            } else if (secondCell.yi > firstCell.yi) {
+                direction = Cell.DOWN;
+            } else {
+                // clicked the same cell twice - erase all flows
+                //if (team === PLAYER_INDEX) {
+                //    net.sendEvent(netevents.flowclear(firstCell.xi, firstCell.yi));
+                //}
+                self.flowClear(team, firstCell.xi, firstCell.yi);
+                return;
+            }
+            if (firstCell.flows[team][direction]) {
+                firstCell.flows[team][direction] = false;
+            } else {
+                firstCell.flows[team][direction] = true;
+            }
+
+            // If the destination cell already has a flow back to the origin cell, remove that flow.
+            direction = (direction + 2) % 4; // reverse direction
+
+            if (secondCell.flows[team][direction]) {
+                secondCell.flows[team][direction] = false;
+            }
+
+            flowsDirty = true;
+        },
+
+        flowClear: function(team, x,y) {
+            var cell = cells[x][y];
+            for (var i = 0; i < 4; i++) {
+                cell.flows[team][i] = false;
+                var adjacent = getOffsetCell(cell, i);
+                if (adjacent) {
+                    adjacent.flows[team][(i+2)%4] = false;
+                }
+            }
+            flowsDirty = true;
         }
     };
 
@@ -264,47 +357,10 @@ game = (function(width, height) {
             return cells[newx][newy];
         }
     }
-    
+
     function handleClickComplete(firstCell, secondCell) {
-        var direction;
-        if (secondCell.xi > firstCell.xi) {
-            direction = Cell.RIGHT;
-        } else if (secondCell.xi < firstCell.xi) {
-            direction = Cell.LEFT;
-        } else if (secondCell.yi < firstCell.yi) {
-            direction = Cell.UP;
-        } else if (secondCell.yi > firstCell.yi) {
-            direction = Cell.DOWN;
-        } else {
-            // clicked the same cell twice - erase all flows
-
-            var event = netevents.flowclear(firstCell);
-            net.sendEvent(event);
-
-            for (var i = 0; i < 4; i++) {
-                firstCell.flows[PLAYER_INDEX][i] = false;
-                var adjacent = getOffsetCell(firstCell, i);
-                if (adjacent) {
-                    adjacent.flows[PLAYER_INDEX][(i+2)%4] = false;
-                }
-            }
-            flowsDirty = true;
-            return;
-        }
-        if (firstCell.flows[PLAYER_INDEX][direction]) {
-            firstCell.flows[PLAYER_INDEX][direction] = false;
-        } else {
-            firstCell.flows[PLAYER_INDEX][direction] = true;
-        }
-
-        // If the destination cell already has a flow back to the origin cell, remove that flow.
-        direction = (direction + 2) % 4; // reverse direction
-        
-        if (secondCell.flows[PLAYER_INDEX][direction]) {
-            secondCell.flows[PLAYER_INDEX][direction] = false;
-        }
-        
-        flowsDirty = true;
+        net.sendEvent(netevents.flowconnect(firstCell.xi, firstCell.yi, secondCell.xi, secondCell.yi));
+        self.flowConnect(PLAYER_INDEX, firstCell.xi, firstCell.yi, secondCell.xi, secondCell.yi);
     }
 
     function doFPS(timeDelta, timeStamp) {
@@ -319,8 +375,10 @@ game = (function(width, height) {
                 + " - tk: " + tick
                 + " - pr: " + window.devicePixelRatio
                 + " (" + window.innerWidth + "," + window.innerHeight + ")" 
-                + "\n" + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "GooglePlayGamesPlugin exists" : "GooglePlayGamesPlugin does not exist")
-                + "\n" + (deviceReadyCalled ? "deviceready called" : "deviceready not called")
+                + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "\nGooglePlayGamesPlugin exists" : "")
+                + (deviceReadyCalled ? "" : "\ndeviceready not called")
+                + "\nsent: " + net.messagesSent + "/" + net.bytesSent
+                + " - received: " + net.messagesReceived + "/" + net.bytesReceived
             );
             frameCount = 0;
             frameStart = timeStamp;
@@ -330,16 +388,16 @@ game = (function(width, height) {
         }
     }
     
-    function flowCell(cell, tickMS) {
+    function flowCellPlayer(player, cell, tickMS) {
         // Step 1: Determine how many flows leave the cell
         // Step 2: Split CONFIG.FLOW_RATE evenly
         // Step 2a: If a dest cell is a flow rate limiter or accelerator, apply that to the relevant flow.
         
         var flowcount = 0.0;
         for (var direction = 0; direction < 4; direction++) {
-            if (cell.flows[PLAYER_INDEX][direction]) {
+            if (cell.flows[player][direction]) {
                 var dest = getOffsetCell(cell, direction);
-                if (dest.armyStrength < 1.0  &&  dest.armyOwner !== ENEMY_INDEX) {
+                if (dest.armyStrength < 1.0  &&  (dest.armyOwner === player || dest.armyOwner < 0)) {
                     flowcount = flowcount + 1.0;
                 }
             }
@@ -349,13 +407,20 @@ game = (function(width, height) {
         var flowPer =  Math.min(CONFIG.FLOW_RATE, cell.armyStrength) / flowcount;
         
         for (var direction = 0; direction < 4; direction++) {
-            if (cell.armyOwner === PLAYER_INDEX  &&  cell.flows[PLAYER_INDEX][direction]) {
+            if (cell.armyOwner === player  &&  cell.flows[player][direction]) {
                 var dest = getOffsetCell(cell, direction);
-                if (dest.armyStrength >= 1.0  ||  dest.armyOwner === ENEMY_INDEX) {
+                if (dest.armyStrength >= 1.0  ||  (dest.armyOwner !== -1 && dest.armyOwner !== player)) {
                     // can't flow anymore
                 } else {
                     if (dest.armyOwner < 0) {
-                        dest.armyOwner = PLAYER_INDEX;
+                        dest.armyOwner = player;
+
+                        // break enemy flows
+                        var enemy = (player === 0 ? 1 : 0);
+                        for (var f = 0; f < 4; f++) {
+                            dest.flows[enemy][f] = false;
+                        }
+                        // TODO: ALSO BREAK ENEMY FLOWS INTO THIS CELL
                     }
                     
                     var flowedAmount = flowPer;
@@ -371,7 +436,12 @@ game = (function(width, height) {
             cell.armyStrength -= totalFlowOut;
         }
     }
-    
+
+    function flowCell(cell, tickMS) {
+        flowCellPlayer(0, cell, tickMS);
+        flowCellPlayer(1, cell, tickMS);
+    }
+
     function stepCombat(cell) {
         // Check if any flows in
         // If flows in, total up army strength in (attackers)
@@ -446,7 +516,7 @@ game = (function(width, height) {
             foreachCell(function(cell) {
                 stepCombat(cell);
             });
-            cellsDirty = true;
+            gameState.cellsDirty = true;
         }
     }
 
@@ -454,9 +524,9 @@ game = (function(width, height) {
         doFPS(timeDelta, timeStamp);
         stepGameState(timeDelta, timeStamp);
 
-        if (cellsDirty) {
+        if (gameState.cellsDirty) {
             drawCells();
-            cellsDirty = false;
+            gameState.cellsDirty = false;
         }
         
         if (flowsDirty) {
@@ -509,7 +579,7 @@ game = (function(width, height) {
             cell.generatorSpeed = mapData.generators[i].speedFactor;
             cell.generatorSpeed = cell.generatorSpeed ? cell.generatorSpeed : CONFIG.GENERATOR_SPEED;
             cell.armyStrength = 0.0;
-            cellsDirty = true;
+            gameState.cellsDirty = true;
         }
     }
 
@@ -650,7 +720,6 @@ game = (function(width, height) {
     }
 
     function doResize(event) {
-        alert("doResize");
         var widthToHeight = width/height;
         var newWidth = window.innerWidth;
         var newHeight = window.innerHeight;
