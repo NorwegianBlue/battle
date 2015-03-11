@@ -20,6 +20,12 @@ netevents = (function() {
             return e;
         },
 
+        sync: function(cells) {
+            var e = new NetEvent('sync');
+            e.cells = cells;
+            return e;
+        },
+
         flowconnect: function(x1,y1, x2,y2) {
             var e = new NetEvent('flowconnect');
             e.start = {x: x1, y: y1};

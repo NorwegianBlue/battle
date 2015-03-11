@@ -39,6 +39,7 @@ game = (function(width, height) {
     var frameStart = 0;
     
     var nextTick = 0;
+    var nextSync = 0;
     var tick = 0;
 
     var stage;
@@ -55,7 +56,6 @@ game = (function(width, height) {
     var textContainer;
 
     var text;
-//    var message;
     var textDirty = false;
 
     var flowsDirty = false;
@@ -102,22 +102,6 @@ game = (function(width, height) {
             stage.addChild(textContainer);
             stage.addChild(topContainer);
 
-            /*
-            redBase = new PIXI.Graphics();
-            redBase.interactive = true;
-            redBase.mousedown = redBase.touchstart = function (interactionData) {
-                var gd = redBase.graphicsData[0];
-                redBase.clear();
-                redBase.lineStyle(1, 0xffffff, 0.8);
-                redBase.beginFill(0xffffff, 0.8);
-                redBase.drawRect(gd.shape.x, gd.shape.y, gd.shape.width, gd.shape.height);
-            };
-            baseContainer.addChild(redBase);
-
-            blueBase = new PIXI.Graphics();
-            baseContainer.addChild(blueBase);
-            */
-
             text = new PIXI.Text("Battle", {font: "20px Roboto,Arial", fill: 'white'});
             text.position.x = 10;
             text.position.y = 10;
@@ -131,8 +115,6 @@ game = (function(width, height) {
         run: function () {
             PLAYER_INDEX = CONFIG.PLAYER_ID;
             ENEMY_INDEX = PLAYER_INDEX === 0 ? 1 : 0;
-            console.log("PLAYER_INDEX=" + PLAYER_INDEX);
-            console.log("ENEMY_INDEX=" + ENEMY_INDEX);
 
             window.addEventListener("resize", doResize);
             doResize();
@@ -145,6 +127,7 @@ game = (function(width, height) {
                         mapData = data;
                         setupGameState();
                         nextTick = CONFIG.GAME_TICK_MS;
+                        nextSync = CONFIG.SYNC_MS;
                         self.update(0);
                     },
                     function (xhr) {
@@ -171,20 +154,44 @@ game = (function(width, height) {
             net.sendEvent(e);
         },
 
+        pushUpdateSync: function() {
+            var changes = [];
+            foreachCell(function (cell) {
+                if (cell.lastChange !== 0) {
+                    changes.push(cell);
+                }
+            });
+            if (changes.length > 0) {
+                var e = netevents.sync(changes);
+                net.sendEvent(e);
+            }
+            [].forEach.call(changes, function(cell) {
+                cell.lastChange = 0;
+            });
+        },
+
         handleMessage: function(e) {
             switch(e.action) {
                 case "pushsync":
                     cells = e.gameState.cells;
                     [].forEach.call(cells, function(a) {
-                        [].forEach.call(a, function(c) {
-                            c.__proto__ = Cell.prototype;
+                        [].forEach.call(a, function(cell) {
+                            cell.__proto__ = Cell.prototype;
                         });
                     });
                     gameState.cellsDirty = true;
                     flowsDirty = true;
                     generatorsDirty = true;
                     textDirty = true;
+                    break;
 
+                case "sync":
+                    [].forEach.call(e.cells, function(cell) {
+                        cells[cell.xi][cell.yi].sync(cell);
+                    });
+                    gameState.cellsDirty = true;
+                    flowsDirty = true;
+                    textDirty = true;
                     break;
 
                 case "flowconnect":
@@ -218,18 +225,11 @@ game = (function(width, height) {
                 self.flowClear(team, firstCell.xi, firstCell.yi);
                 return;
             }
-            if (firstCell.flows[team][direction]) {
-                firstCell.flows[team][direction] = false;
-            } else {
-                firstCell.flows[team][direction] = true;
-            }
+            firstCell.flows[team][direction] = !firstCell.flows[team][direction];
 
             // If the destination cell already has a flow back to the origin cell, remove that flow.
             direction = (direction + 2) % 4; // reverse direction
-
-            if (secondCell.flows[team][direction]) {
-                secondCell.flows[team][direction] = false;
-            }
+            secondCell.flows[team][direction] = false;
 
             flowsDirty = true;
         },
@@ -388,7 +388,7 @@ game = (function(width, height) {
         }
     }
     
-    function flowCellPlayer(player, cell, tickMS) {
+    function flowCellPlayer(player, cell, lagFactor) {
         // Step 1: Determine how many flows leave the cell
         // Step 2: Split CONFIG.FLOW_RATE evenly
         // Step 2a: If a dest cell is a flow rate limiter or accelerator, apply that to the relevant flow.
@@ -404,7 +404,7 @@ game = (function(width, height) {
         }
 
         var totalFlowOut = 0.0;
-        var flowPer =  Math.min(CONFIG.FLOW_RATE, cell.armyStrength) / flowcount;
+        var flowPer =  Math.min(CONFIG.FLOW_RATE * lagFactor, cell.armyStrength) / flowcount;
         
         for (var direction = 0; direction < 4; direction++) {
             if (cell.armyOwner === player  &&  cell.flows[player][direction]) {
@@ -427,22 +427,24 @@ game = (function(width, height) {
                     if (flowedAmount > (1.0 - dest.armyStrength)) {
                         flowedAmount = (1.0 - dest.armyStrength);
                     }
-                    dest.armyStrength += flowedAmount;                    
+                    dest.armyStrength += flowedAmount;
+                    dest.lastChange = Date.now();
                     totalFlowOut += flowedAmount;
                 }
             }
         }
         if (totalFlowOut > 0.0) {
             cell.armyStrength -= totalFlowOut;
+            cell.lastChange = Date.now();
         }
     }
 
-    function flowCell(cell, tickMS) {
-        flowCellPlayer(0, cell, tickMS);
-        flowCellPlayer(1, cell, tickMS);
+    function flowCell(cell, lagFactor) {
+        flowCellPlayer(0, cell, lagFactor);
+        flowCellPlayer(1, cell, lagFactor);
     }
 
-    function stepCombat(cell) {
+    function stepCombat(cell, lagFactor) {
         // Check if any flows in
         // If flows in, total up army strength in (attackers)
         // Apply to army strength in cell (defender)
@@ -467,11 +469,12 @@ game = (function(width, height) {
             }
             
             // Larger army reduces its own casualties, but doesn't increase enemy casualties
-            var defenderCasualties = (totalAttack * CONFIG.CASUALTY_FACTOR) * Math.min((totalAttack / cell.armyStrength)*0.50, 1);
-            var attackerCasualties = (cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min((cell.armyStrength / totalAttack)*0.50, 1);
+            var defenderCasualties = ((totalAttack * CONFIG.CASUALTY_FACTOR) * Math.min((totalAttack / cell.armyStrength)*0.50, 1)) * lagFactor;
+            var attackerCasualties = ((cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min((cell.armyStrength / totalAttack)*0.50, 1)) * lagFactor;
             
             cell.armyStrength -= defenderCasualties;
             if (cell.armyStrength < 0.0) {
+                cell.lastChange = Date.now();
                 cell.armyStrength = 0.0;
                 cell.armyOwner = attackingCells[0].armyOwner;
                 if (cell.generatorSpeed > 0.0) {
@@ -481,6 +484,7 @@ game = (function(width, height) {
             
             var a = attackerCasualties / attackingCells.length;
             for (var i = 0; i < attackingCells.length; i++) {
+                attackingCells[i].lastChange = Date.now();
                 attackingCells[i].armyStrength -= a;
                 if (attackingCells[i].armyStrength <= 0.0) {
                     attackingCells[i].armyStrength = 0.0;
@@ -499,6 +503,7 @@ game = (function(width, height) {
         if (timeStamp >= nextTick) {
             var thisTickMS = timeStamp - nextTick + CONFIG.GAME_TICK_MS;  // actual time for this tick. for lag adjustment etc.
             nextTick = timeStamp + CONFIG.GAME_TICK_MS;
+            var lagFactor = thisTickMS / CONFIG.GAME_TICK_MS;
             tick++;
                     
             foreachCell(function(cell) {
@@ -507,16 +512,21 @@ game = (function(width, height) {
                 }
                 
                 if (cell.armyStrength > 0  &&  cell.armyOwner >= 0  && cell.anyFlows()) {
-                    flowCell(cell, thisTickMS);
+                    flowCell(cell, lagFactor);
                 }
                 return true;
             });
             
             // fight
             foreachCell(function(cell) {
-                stepCombat(cell);
+                stepCombat(cell, lagFactor);
             });
             gameState.cellsDirty = true;
+        }
+
+        if (timeStamp >= nextSync) {
+            nextSync = timeStamp + CONFIG.SYNC_MS;
+            self.pushUpdateSync();
         }
     }
 
@@ -608,13 +618,53 @@ game = (function(width, height) {
         armyContainer.addChild(garmy);
     }
     
-    function drawFlow(graphic, player, startCell, endCell) {
+    function drawFlow_middle(graphic, player, startCell, endCell) {
         var w = 3;//Math.max(CONFIG.CELL_WIDTH / 20, 1);
         graphic.lineStyle(w, PLAYER_COLOR_FLOW[player], 0.8);
         graphic.moveTo(Cell.toCssMidX(startCell.xi), Cell.toCssMidY(startCell.yi));
         graphic.lineTo(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi));
         graphic.beginFill(PLAYER_COLOR_FLOW[player], 0.8);
         graphic.drawCircle(Cell.toCssMidX(endCell.xi), Cell.toCssMidY(endCell.yi), 3);
+    }
+
+    function drawFlow(graphic, player, startCell, endCell) {
+        var w = 3;
+        var offsetw = (CONFIG.CELL_WIDTH / 2) / 2;
+        var offseth = (CONFIG.CELL_HEIGHT / 2) / 2;
+
+        graphic.lineStyle(w, PLAYER_COLOR_FLOW[player], 0.8);
+        graphic.beginFill(PLAYER_COLOR_FLOW[player], 0.8);
+
+        var sr = Cell.toCssBoundsRect(startCell.xi, startCell.yi).inflateRect(-offsetw, -offseth);
+        var er = Cell.toCssBoundsRect(endCell.xi, endCell.yi).inflateRect(-offsetw, -offseth);
+
+        var bx,by, ex,ey;
+
+        if (endCell.xi > startCell.xi) {        // right flow
+            bx = sr.x + sr.width;
+            by = sr.y + sr.height/2;
+            ex = er.x;
+            ey = by;
+        } else if (endCell.xi < startCell.xi) { //left flow
+            bx = sr.x;
+            by = sr.y + sr.height/2;
+            ex = er.x + er.width;
+            ey = by;
+        } else if (endCell.yi > startCell.yi) { // down flow
+            bx = sr.x + sr.width/2;
+            by = sr.y + sr.height;
+            ex = bx;
+            ey = er.y;
+        } else {// up flow
+            bx = sr.x + sr.width/2
+            by = sr.y;
+            ex = bx;
+            ey = er.y + er.height;
+        }
+
+        graphic.moveTo(bx,by);
+        graphic.lineTo(ex,ey);
+        graphic.drawCircle(ex,ey,3);
     }
     
     function drawFlows() {
@@ -653,11 +703,12 @@ game = (function(width, height) {
         // Create the cells
         var graphics = new PIXI.Graphics();
         graphics.lineStyle(1, mapData.lineColor, 0.15);
-        cells = Array(Cell.XHi);
+        gameState.cells = Array(Cell.XHi);
+
         for (var x = 0; x < Cell.XHi; x++) {
-            cells[x] = Array(Cell.YHi);
+            gameState.cells[x] = Array(Cell.YHi);
             for (var y = 0; y < Cell.YHi; y++) {
-                cells[x][y] = new Cell(x, y);
+                gameState.cells[x][y] = new Cell(x, y);
                 var rgb = Array(3);
                 for (var i = 0; i < 3; i++) {
                     rgb[i] = mapData.minColor[i] + (Math.random() * (mapData.maxColor[i] - mapData.minColor[i]));
@@ -667,6 +718,8 @@ game = (function(width, height) {
             }
         }
         cellContainer.addChild(graphics);
+
+        cells = gameState.cells;
 
         // Create the bases
         initGens();

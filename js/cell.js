@@ -5,11 +5,17 @@ function Cell(x,y, pixiRect) {
     this.flows = new Array(2);
     this.flows[0] = new Array(4);
     this.flows[1] = new Array(4);
+
+    this.flowed = new Array(2);
+    this.flowed[0] = new Array(4);
+    this.flowed[1] = new Array(4);
         
     this.armyStrength = 0.0;
     this.armyOwner = -1;
     
     this.generatorSpeed = 0.0;
+    this.lastSync = Date.now();
+    this.lastChange = 0;
 }
 
 Cell.FLOW_UP = 0;
@@ -55,6 +61,20 @@ Cell.fromCss = function(x,y) {
 Cell.XHi = ~~(CONFIG.X_RESOLUTION / CONFIG.CELL_WIDTH);
 Cell.YHi = ~~(CONFIG.Y_RESOLUTION / CONFIG.CELL_HEIGHT);
 
+Cell.prototype.sync = function(syncFrom) {
+    /*
+    for (var team = 0; team < 2; team++) {
+        for (var direction = 0; direction < 4; direction++) {
+            this.flows[team][direction] = syncFrom.flows[team][direction];
+        }
+    }
+    */
+    this.armyStrength = syncFrom.armyStrength;
+    this.armyOwner = syncFrom.armyOwner;
+    this.lastSync = Date.now();
+    this.lastChange = 0;
+};
+
 Cell.prototype.xpos = function() {
     return this.xi * CONFIG.CELL_WIDTH;
 };
@@ -76,4 +96,12 @@ Cell.prototype.anyFlows = function() {
 
 Cell.prototype.toCssBoundsRect = function() {
     return Cell.toCssBoundsRect(this.xi, this.yi);
+};
+
+PIXI.Rectangle.prototype.inflateRect = function(w,h) {
+    this.x -= w;
+    this.y -= h;
+    this.width += w*2;
+    this.height += w*2;
+    return this;
 };

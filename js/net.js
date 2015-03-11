@@ -34,7 +34,6 @@ net = (function() {
                 game.handleMessage(message);
 
                 console.log("Received: ", message);
-
             };
             self.socket.onerror = function(e) {
                 console.error("socket error: ", e);
