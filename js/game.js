@@ -11,6 +11,7 @@ PLAYER_COLOR_INDEX = [RED_INDEX, BLUE_INDEX];
 PLAYER_COLORS = [0xee0000, 0x0000ff];
 PLAYER_COLORS2 = [0xff9999, 0x9999ff];
 PLAYER_COLOR_FLOW = [0xff6666, 0x6666ff];
+PLAYER_COLOR_FLOW_ACTIVE = [0xffaaaa, 0xaaaaff];
 
 InputModes = Object.freeze({
     IDLE: 0,
@@ -399,6 +400,7 @@ game = (function(width, height) {
                 var dest = getOffsetCell(cell, direction);
                 if (dest.armyStrength < 1.0  &&  (dest.armyOwner === player || dest.armyOwner < 0)) {
                     flowcount = flowcount + 1.0;
+                    cell.flowed[player][direction] = Date.now();
                 }
             }
         }
@@ -409,8 +411,11 @@ game = (function(width, height) {
         for (var direction = 0; direction < 4; direction++) {
             if (cell.armyOwner === player  &&  cell.flows[player][direction]) {
                 var dest = getOffsetCell(cell, direction);
-                if (dest.armyStrength >= 1.0  ||  (dest.armyOwner !== -1 && dest.armyOwner !== player)) {
-                    // can't flow anymore
+                if (dest.armyStrength >= 1.0) {
+                    // destination full
+                    cell.flowed[player][direction] = false;
+                } else if (dest.armyOwner !== -1 && dest.armyOwner !== player) {
+                    // can't flow into enemy cell
                 } else {
                     if (dest.armyOwner < 0) {
                         dest.armyOwner = player;
@@ -428,14 +433,18 @@ game = (function(width, height) {
                         flowedAmount = (1.0 - dest.armyStrength);
                     }
                     dest.armyStrength += flowedAmount;
-                    dest.lastChange = Date.now();
+                    if (dest.armyOwner === PLAYER_INDEX) {
+                        dest.lastChange = Date.now();
+                    }
                     totalFlowOut += flowedAmount;
                 }
             }
         }
         if (totalFlowOut > 0.0) {
             cell.armyStrength -= totalFlowOut;
-            cell.lastChange = Date.now();
+            if (cell.armyOwner === PLAYER_INDEX) {
+                cell.lastChange = Date.now();
+            }
         }
     }
 
@@ -457,6 +466,7 @@ game = (function(width, height) {
             if (adjacent  &&  adjacent.armyOwner !== cell.armyOwner  &&  adjacent.armyStrength > 0  && adjacent.anyFlows()) {
                 var opposite_d = (d + 2) % 4;                
                 if (adjacent.flows[adjacent.armyOwner][opposite_d]) {
+                    adjacent.flowed[adjacent.armyOwner][opposite_d] = Date.now();
                     attackingCells.push(adjacent);
                 }
             }
@@ -473,10 +483,21 @@ game = (function(width, height) {
             var attackerCasualties = ((cell.armyStrength * CONFIG.CASUALTY_FACTOR) * Math.min((cell.armyStrength / totalAttack)*0.50, 1)) * lagFactor;
             
             cell.armyStrength -= defenderCasualties;
-            if (cell.armyStrength < 0.0) {
+            if (cell.armyOwner === PLAYER_INDEX) {
                 cell.lastChange = Date.now();
+            }
+            if (cell.armyStrength < 0.0) {
                 cell.armyStrength = 0.0;
+                if (cell.armyOwner >= 0) {
+                    for (d = 0; d < 4; d++) {
+                        cell.flows[cell.armyOwner][d] = false;
+                        cell.flowed[cell.armyOwner][d] = 0;
+                    }
+                }
                 cell.armyOwner = attackingCells[0].armyOwner;
+                if (cell.armyOwner === PLAYER_INDEX) {
+                    cell.lastChange = Date.now();
+                }
                 if (cell.generatorSpeed > 0.0) {
                     generatorsDirty = true;
                 }
@@ -484,7 +505,9 @@ game = (function(width, height) {
             
             var a = attackerCasualties / attackingCells.length;
             for (var i = 0; i < attackingCells.length; i++) {
-                attackingCells[i].lastChange = Date.now();
+                if (attackingCells[i].armyOwner === PLAYER_INDEX) {
+                    attackingCells[i].lastChange = Date.now();
+                }
                 attackingCells[i].armyStrength -= a;
                 if (attackingCells[i].armyStrength <= 0.0) {
                     attackingCells[i].armyStrength = 0.0;
@@ -507,12 +530,20 @@ game = (function(width, height) {
             tick++;
                     
             foreachCell(function(cell) {
-                if (cell.generatorSpeed > 0) {
+                if (cell.generatorSpeed > 0  &&  cell.armyStrength < 1.0) {
                     cell.armyStrength = Math.min(cell.armyStrength + cell.generatorSpeed, 1.0);
+                    if (cell.armyOwner === PLAYER_INDEX) {
+                        cell.lastChange = Date.now();
+                    }
                 }
                 
                 if (cell.armyStrength > 0  &&  cell.armyOwner >= 0  && cell.anyFlows()) {
                     flowCell(cell, lagFactor);
+                } else {
+                    for (var d = 0; d < 4; d++) {
+                        cell.flowed[0][d] = false;
+                        cell.flowed[1][d] = false;
+                    }
                 }
                 return true;
             });
@@ -539,10 +570,10 @@ game = (function(width, height) {
             gameState.cellsDirty = false;
         }
         
-        if (flowsDirty) {
+        //if (flowsDirty) {
             drawFlows();
             flowsDirty = false;
-        }
+        //}
         
         if (generatorsDirty) {
             drawGens();
@@ -632,34 +663,43 @@ game = (function(width, height) {
         var offsetw = (CONFIG.CELL_WIDTH / 2) / 2;
         var offseth = (CONFIG.CELL_HEIGHT / 2) / 2;
 
-        graphic.lineStyle(w, PLAYER_COLOR_FLOW[player], 0.8);
-        graphic.beginFill(PLAYER_COLOR_FLOW[player], 0.8);
-
         var sr = Cell.toCssBoundsRect(startCell.xi, startCell.yi).inflateRect(-offsetw, -offseth);
         var er = Cell.toCssBoundsRect(endCell.xi, endCell.yi).inflateRect(-offsetw, -offseth);
 
-        var bx,by, ex,ey;
 
+        var bx,by, ex,ey, direction;
         if (endCell.xi > startCell.xi) {        // right flow
             bx = sr.x + sr.width;
             by = sr.y + sr.height/2;
             ex = er.x;
             ey = by;
+            direction = Cell.RIGHT;
         } else if (endCell.xi < startCell.xi) { //left flow
             bx = sr.x;
             by = sr.y + sr.height/2;
             ex = er.x + er.width;
             ey = by;
+            direction = Cell.LEFT;
         } else if (endCell.yi > startCell.yi) { // down flow
             bx = sr.x + sr.width/2;
             by = sr.y + sr.height;
             ex = bx;
             ey = er.y;
-        } else {// up flow
+            direction = Cell.DOWN;
+        } else {                                // up flow
             bx = sr.x + sr.width/2
             by = sr.y;
             ex = bx;
             ey = er.y + er.height;
+            direction = Cell.UP;
+        }
+
+        if (startCell.flowed[player][direction]) {
+            graphic.lineStyle(w, PLAYER_COLOR_FLOW_ACTIVE[player], 0.7);
+            graphic.beginFill(PLAYER_COLOR_FLOW_ACTIVE[player], 0.7);
+        } else {
+            graphic.lineStyle(w, PLAYER_COLOR_FLOW[player], 0.5);
+            graphic.beginFill(PLAYER_COLOR_FLOW[player], 0.5);
         }
 
         graphic.moveTo(bx,by);
