@@ -9,6 +9,8 @@ net = (function() {
         bytesReceived: 0,
         messagesReceived: 0,
 
+        messageHandler: null,
+
         connect: function(address, port) {
             self.bytesSent = 0;
             self.messagesSent = 0;
@@ -30,8 +32,10 @@ net = (function() {
                 self.messagesReceived++;
                 self.bytesReceived += e.data.length;
 
-                var message = JSON.parse(e.data);
-                game.handleMessage(message);
+                if (messageHandler) {
+                    var message = JSON.parse(e.data);
+                    game.handleMessage(message);
+                }
 
                 console.log("Received: ", message);
             };
@@ -47,11 +51,31 @@ net = (function() {
         },
 
         sendEvent: function(event) {
+            self.sendBytes(JSON.stringify(event));
+        },
+
+        sendBytes: function(s) {
             self.messagesSent++;
-            var s = JSON.stringify(event);
             self.bytesSent += s.length;
             self.socket.send(s);
         }
     };
+    return self;
+})();
+
+
+lobbyevents = (function() {
+    var self = {
+
+    };
+
+    function LobbyEvent(name) {
+        var self = this;
+
+        this.send = function send() {
+            net.sendBytes("L" + JSON.stringify(self));
+        }
+    };
+
     return self;
 })();

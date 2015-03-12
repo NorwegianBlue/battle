@@ -13,10 +13,17 @@ netevents = (function() {
 
         },
 
+        whoishere: function() {
+            var e = new NetEvent('whoishere');
+            e.playeruuid = CONFIG.PLAYER_UUID;
+            e.nickname = CONFIG.NICKNAME;
+            return e;
+        },
+
         pushsync: function(game) {
             var e = new NetEvent('pushsync');
             e.playeruuid = CONFIG.PLAYER_UUID;
-            e.gameState = game.getState();
+            e.syncData = game.getSyncData();
             return e;
         },
 
@@ -47,12 +54,17 @@ netevents = (function() {
     };
 
     function NetEvent(action) {
+        var self = this;
         this.id = eventId;
         this.action = action;
-        this.playerid = CONFIG.PLAYER_ID;
+        this.team = CONFIG.PLAYER_TEAM;
         this.timestamp = Date.now();
 
         eventId++;
+
+        this.send = function() {
+            net.sendEvent(self);
+        };
     }
 
     return self;

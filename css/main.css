@@ -7,6 +7,48 @@ body {
 .page {
     color: black;
     display: none;
+    padding: 0;
+    margin: 0;
+    border: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.page-header {
+    width: 100%;
+    height: 2em;
+    line-height: 2em;
+    font-size: 2em;
+    background-color: #337ab7;
+    background: linear-gradient(to right, #1E71B5 1%,#7db9e8 100%);
+    color: white;
+    margin: 0;
+    border: 0;
+    padding: 5px 0 0 10px;
+}
+
+.page-body {
+    padding: 10px 10px;
+}
+
+.form-control {
+    font-size: 1em;
+    line-height: 1em;
+}
+
+.btn {
+    font-size: 2em;
+}
+
+#server.page, #server > .page-footer {
+    font-size: 2em;
+    background-color: white;
+}
+
+.page-footer {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 #gamearea {
@@ -20,18 +62,24 @@ body {
     height: 100%;
 }
 
+/*
+@media only screen and (orientation: portrait) {
+    #server {
 
+    }
+}
+*/
+
+/*
 @media only screen and (min-device-pixel-ratio: 1),
        only screen and (min-resolution: 96dpi) {
     #server {
         max-width: 800px;
-        padding: 40px;
         margin-left: auto;
         margin-right: auto;
     }
 }
 
-/*
 @media only screen and (min-device-pixel-ratio: 1.5),
        only screen and (min-resolution: 192ddpx) {
     .xmodal-header {

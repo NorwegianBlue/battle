@@ -5,48 +5,48 @@
     <link rel="stylesheet" type="text/css" href="css/bootstrap.css">
     <link rel="stylesheet" type="text/css" href="css/main.css">
     <title>Battle</title>
+    <script src="lib/zepto.js"></script>
 </head>
 <body>
     <div class="page" id="server">
-        <div class="modal-content">
-            <div class="modal-header">
-                Game Server
-            </div>
-            <div class="modal-body">
-                <form class="form-horizontal">
-                    <div class="form-group">
-                        <label class="control-label col-xs-2" for="serverAddress">Server</label>
-                        <div class="col-xs-10">
-                            <input class="form-control" id="serverAddress" type="text" />
-                        </div>
+        <div class="page-header">
+            Blob Battle
+        </div>
+        <div class="page-body">
+            <form class="form-horizontal">
+                <div class="form-group">
+                    <label class="control-label col-xs-3" for="serverAddress">Server</label>
+                    <div class="col-xs-7">
+                        <input class="form-control" id="serverAddress" type="text" />
                     </div>
+                </div>
 
-                    <div class="form-group">
-                        <label class="control-label col-xs-2" for="nickname">Nickname</label>
-                        <div class="col-xs-10">
-                            <input class="form-control" id="nickname" type="text" />
-                        </div>
+                <div class="form-group">
+                    <label class="control-label col-xs-3" for="nickname">Nickname</label>
+                    <div class="col-xs-7">
+                        <input class="form-control" id="nickname" type="text" />
                     </div>
+                </div>
 
-                    <div class="form-group">
-                        <label class="control-label col-xs-2">Player</label>
-                        <div class="col-xs-10">
-                            <label>
-                                <input type="radio" id="playerTop" name="player" value="top" class="btn btn-default"> Top/Red </input>
-                            </label>
-                            <label>
-                                <input type="radio" id="playerBottom" name="player" value="bottom" class="btn btn-default" checked="checked"> Bottom/Blue </input>
-                            </label>
-                        </div>
+                <div class="form-group">
+                    <label class="control-label col-xs-3">Team</label>
+                    <div class="btn-group-vertical">
+                        <button type="button" id="playerTop" class="btn btn-default btn-danger" onclick="onTeamClick(this);"> Red Team </button>
+                        <button type="button" id="playerBottom" class="btn btn-default btn-primary" onclick="onTeamClick(this);"> Blue Team </button>
                     </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" id="submitBtn" type="button">OK</button>
-            </div>
+                </div>
+            </form>
+        </div>
+        <div "page-footer">
+            <button class="btn btn-block btn-primary" id="submitBtn" type="button">Join</button>
         </div>
     </div>
-    
+
+    <div class="page" id="lobby">
+        <div class="modal-content">
+        </div>
+    </div>
+
     <div  class="page" id="connecting">
         Connecting...
     </div>
@@ -55,7 +55,7 @@
         <button type="button" id="btnReset">Reset</button>
         <button type="button" id="btnPushSync">Push Sync</button>        
     </div>
-    
+
     <script src="js/utils.js"></script>
 
     <script type="text/javascript">
@@ -64,11 +64,14 @@
         CONFIG = {
             CELL_WIDTH: CELLRES,
             CELL_HEIGHT: CELLRES,
-            X_RESOLUTION: 8*CELLRES +1,
+            X_RESOLUTION: (8)*CELLRES +1,
             Y_RESOLUTION: 12*CELLRES +1,
 
             SHOW_ENEMY_FLOWS: true,
-            
+            IDLE_FLOW_TIMEOUT_SEC: 30,
+
+            PLAYER_JOIN_WAIT_SEC: 20,
+
             GAME_TICK_MS: 25,
             SYNC_MS: 500,
             GENERATOR_SPEED: 0.005,
@@ -78,7 +81,7 @@
             SERVER_PORT: 443,
             SERVER_ADDRESS: "battle.plasmatech.com",
             NICKNAME: null,
-            PLAYER_ID: -1,
+            PLAYER_TEAM: -1,
             PLAYER_UUID: UUID()
         };
         
@@ -88,9 +91,13 @@
         };
         
     </script>
+
+    <script id="hbsLobby" src="templates/lobby.hbs" type="text/x-handlebars-template"></script>
+
     <script src="cordova.js"></script>
     <script src="lib/pixi.dev.js"></script>
-    
+
+    <script src="js/lobby.js"></script>
     <script src="js/net.js"></script>
     <script src="js/army.js"></script>
     <script src="js/base.js"></script>
@@ -99,6 +106,13 @@
     <script src="js/game.js"></script>
 
     <script type="text/javascript">
+        function onTeamClick(e) {
+            $(e).siblings().removeClass("active");
+            $(e).addClass("active");
+
+            $("#nickname").val($(e).html());
+        }
+
         Array.prototype.forEach.call(document.getElementsByClassName("page"), function(p) {
             p.style.display = "none";
         });
@@ -108,10 +122,10 @@
         document.getElementById("submitBtn").onclick = function() {
             CONFIG.SERVER_ADDRESS = document.getElementById("serverAddress").value;
             CONFIG.NICKNAME = document.getElementById("nickname").value;
-            if (document.getElementById("playerTop").checked) {
-                CONFIG.PLAYER_ID = 0;
+            if ($("#playerTop").hasClass("active")) {
+                CONFIG.PLAYER_TEAM = 0;
             } else {
-                CONFIG.PLAYER_ID = 1;
+                CONFIG.PLAYER_TEAM = 1;
             }
 
             document.getElementById("server").style.display = "none";
@@ -134,15 +148,15 @@
         }
 
         if (p['team'] !== undefined) {
-            CONFIG.PLAYER_ID = parseInt(p['team'], 10);
+            CONFIG.PLAYER_TEAM = parseInt(p['team'], 10);
         }
 
         if (p['nickname'] !== undefined) {
             CONFIG.NICKNAME = p['nickname'];
         }
 
-        document.getElementById("playerTop").checked = (CONFIG.PLAYER_ID === 0);
-        document.getElementById("playerBottom").checked = (CONFIG.PLAYER_ID !== 0);
+        document.getElementById("playerTop").checked = (CONFIG.PLAYER_TEAM === 0);
+        document.getElementById("playerBottom").checked = (CONFIG.PLAYER_TEAM !== 0);
 
         document.getElementById("serverAddress").value = CONFIG.SERVER_ADDRESS;
 

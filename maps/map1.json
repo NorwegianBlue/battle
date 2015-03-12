@@ -1,5 +1,6 @@
 {
-    "title": "Map 1",
+    "title": "Grass",
+    "backgroundImage": "tileable_grass_00.png",
     "minColor": [
         0,
         140,

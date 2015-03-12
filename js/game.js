@@ -19,8 +19,18 @@ InputModes = Object.freeze({
     DEST_CLICK_FEEDBACK_DELAY: 2
 });
 
-gameState = (function() {
+
+gameState = {
+    JOINING: 0,
+    WAITING_FOR_PLAYERS: 1,
+    PLAYING: 2,
+    ENDING: 3,
+    ENDED: 4
+};
+
+gameData = (function() {
     var self = {
+        state: gameState.JOINING,
         cells: null,
         cellsDirty: false
     };
@@ -31,7 +41,8 @@ gameState = (function() {
 game = (function(width, height) {
     var assetsToLoad = [
         "asset/tileable_grass_00.png",
-        "asset/tileable_grass_01.png"
+        "asset/tileable_grass_01.png",
+        "asset/moon.jpg"
     ];
 
     var lastTime = 0;
@@ -74,7 +85,7 @@ game = (function(width, height) {
     var ENEMY_INDEX;
     var PLAYER_INDEX;
 
-    var cells = gameState.cells;
+    var cells = gameData.cells;
 
     var self = {
 
@@ -114,8 +125,10 @@ game = (function(width, height) {
         },
 
         run: function () {
-            PLAYER_INDEX = CONFIG.PLAYER_ID;
+            PLAYER_INDEX = CONFIG.PLAYER_TEAM;
             ENEMY_INDEX = PLAYER_INDEX === 0 ? 1 : 0;
+
+            net.messageHandler = self.handleMessage;
 
             window.addEventListener("resize", doResize);
             doResize();
@@ -129,6 +142,7 @@ game = (function(width, height) {
                         setupGameState();
                         nextTick = CONFIG.GAME_TICK_MS;
                         nextSync = CONFIG.SYNC_MS;
+                        gameData.state = gameState.WAITING_FOR_PLAYERS;
                         self.update(0);
                     },
                     function (xhr) {
@@ -144,7 +158,7 @@ game = (function(width, height) {
             lastTime = now;
         },
 
-        getState: function() {
+        getSyncData: function() {
             return {
                 cells: cells
             }
@@ -174,13 +188,13 @@ game = (function(width, height) {
         handleMessage: function(e) {
             switch(e.action) {
                 case "pushsync":
-                    cells = e.gameState.cells;
+                    cells = e.syncData.cells;
                     [].forEach.call(cells, function(a) {
                         [].forEach.call(a, function(cell) {
                             cell.__proto__ = Cell.prototype;
                         });
                     });
-                    gameState.cellsDirty = true;
+                    gameData.cellsDirty = true;
                     flowsDirty = true;
                     generatorsDirty = true;
                     textDirty = true;
@@ -190,17 +204,17 @@ game = (function(width, height) {
                     [].forEach.call(e.cells, function(cell) {
                         cells[cell.xi][cell.yi].sync(cell);
                     });
-                    gameState.cellsDirty = true;
+                    gameData.cellsDirty = true;
                     flowsDirty = true;
                     textDirty = true;
                     break;
 
                 case "flowconnect":
-                    self.flowConnect(e.playerid, e.start.x, e.start.y, e.end.x, e.end.y);
+                    self.flowConnect(e.team, e.start.x, e.start.y, e.end.x, e.end.y);
                     break;
 
                 case "flowclear":
-                    self.flowClear(e.playerid, e.cell.x, e.cell.y);
+                    self.flowClear(e.team, e.cell.x, e.cell.y);
                     break;
             }
         },
@@ -552,34 +566,70 @@ game = (function(width, height) {
             foreachCell(function(cell) {
                 stepCombat(cell, lagFactor);
             });
-            gameState.cellsDirty = true;
+            gameData.cellsDirty = true;
         }
 
         if (timeStamp >= nextSync) {
+            var totalTeamArmies = Array(2);
+            totalTeamArmies[0] = 0;
+            totalTeamArmies[1] = 0;
+            foreachCell(function(cell) {
+                if (cell.armyOwner >= 0) {
+                    totalTeamArmies[cell.armyOwner] += cell.armyStrength;
+                }
+            });
+
+            var playerDead = totalTeamArmies[PLAYER_INDEX] < 0.05;
+            var enemyDead = totalTeamArmies[ENEMY_INDEX] < 0.05;
+
+            if (playerDead && enemyDead) {
+                gameover(0);
+            } else if (playerDead) {
+                gameover(-1);
+            } else if (enemyDead) {
+                gameover(+1);
+            }
+
             nextSync = timeStamp + CONFIG.SYNC_MS;
             self.pushUpdateSync();
         }
     }
 
+    function gameover(win) {
+        gameData.state = gameState.ENDED;
+        textContainer.removeChildren();
+        var bf = new PIXI.BlurFilter();
+        bf.blur = 15;
+        cellContainer.filters = [bf];
+        armyContainer.filters = [bf];
+        backgroundContainer.filters = [bf];
+        baseContainer.filters = [bf];
+        flowContainer.filters = [bf];
+    }
+
+
     function gameLoop(timeDelta, timeStamp) {
         doFPS(timeDelta, timeStamp);
-        stepGameState(timeDelta, timeStamp);
 
-        if (gameState.cellsDirty) {
-            drawCells();
-            gameState.cellsDirty = false;
-        }
-        
-        //if (flowsDirty) {
+        if (gameData.state >= gameState.ENDING) {
+        } else {
+            stepGameState(timeDelta, timeStamp);
+
+            if (gameData.cellsDirty) {
+                drawCells();
+                gameData.cellsDirty = false;
+            }
+
+            //if (flowsDirty) {
             drawFlows();
             flowsDirty = false;
-        //}
-        
-        if (generatorsDirty) {
-            drawGens();
-            generatorsDirty = false;
+            //}
+
+            if (generatorsDirty) {
+                drawGens();
+                generatorsDirty = false;
+            }
         }
-        
         renderer.render(stage);
         requestAnimFrame(self.update);
     }
@@ -620,7 +670,7 @@ game = (function(width, height) {
             cell.generatorSpeed = mapData.generators[i].speedFactor;
             cell.generatorSpeed = cell.generatorSpeed ? cell.generatorSpeed : CONFIG.GENERATOR_SPEED;
             cell.armyStrength = 0.0;
-            gameState.cellsDirty = true;
+            gameData.cellsDirty = true;
         }
     }
 
@@ -736,30 +786,32 @@ game = (function(width, height) {
     
     function initMap(mapData) {
         // Create the background
-        var texture = new PIXI.Texture.fromImage("asset/tileable_grass_00.png");
+        var texture = new PIXI.Texture.fromImage("asset/" + mapData.backgroundImage);
         var tilingSprite = new PIXI.TilingSprite(texture, window.innerWidth, window.innerHeight);
         backgroundContainer.addChild(tilingSprite);
         
         // Create the cells
         var graphics = new PIXI.Graphics();
         graphics.lineStyle(1, mapData.lineColor, 0.15);
-        gameState.cells = Array(Cell.XHi);
+        gameData.cells = Array(Cell.XHi);
 
         for (var x = 0; x < Cell.XHi; x++) {
-            gameState.cells[x] = Array(Cell.YHi);
+            gameData.cells[x] = Array(Cell.YHi);
             for (var y = 0; y < Cell.YHi; y++) {
-                gameState.cells[x][y] = new Cell(x, y);
+                gameData.cells[x][y] = new Cell(x, y);
                 var rgb = Array(3);
                 for (var i = 0; i < 3; i++) {
                     rgb[i] = mapData.minColor[i] + (Math.random() * (mapData.maxColor[i] - mapData.minColor[i]));
                 }
-                //graphics.beginFill((~~(rgb[0] << 16)) | (~~(rgb[1] << 8)) | ~~rgb[2], 1.0);
+                if (!mapData.backgroundImage) {
+                    graphics.beginFill((~~(rgb[0] << 16)) | (~~(rgb[1] << 8)) | ~~rgb[2], 1.0);
+                }
                 graphics.drawRect(x * CONFIG.CELL_WIDTH, y * CONFIG.CELL_HEIGHT, CONFIG.CELL_WIDTH, CONFIG.CELL_HEIGHT);
             }
         }
         cellContainer.addChild(graphics);
 
-        cells = gameState.cells;
+        cells = gameData.cells;
 
         // Create the bases
         initGens();
