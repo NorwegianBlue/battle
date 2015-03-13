@@ -9,8 +9,8 @@
 </head>
 <body>
     <div class="page" id="server">
-        <div class="page-header">
-            Blob Battle
+        <div class="page-header" style="text-shadow: 2px 4px 2px rgba(0,0,0,.5);">
+            <b>Blob Battle</b>
         </div>
         <div class="page-body">
             <form class="form-horizontal">
@@ -38,7 +38,7 @@
             </form>
         </div>
         <div "page-footer">
-            <button class="btn btn-block btn-primary" id="submitBtn" type="button">Join</button>
+            <button class="btn btn-block btn-success" id="submitBtn" type="button">Join</button>
         </div>
     </div>
 
@@ -47,8 +47,13 @@
         </div>
     </div>
 
-    <div  class="page" id="connecting">
-        Connecting...
+    <div class="page" id="connecting">
+        <div>
+            <h1>Connecting...</h1>
+            <button class="btn btn-default btn-sm btn-block btn-warning" id="btnConnectCancel" type="button">Cancel</button>
+            <ul id="connectSteps">
+            </ul>
+        </div>
     </div>
     
     <div class="page" id="gamearea">
@@ -113,9 +118,14 @@
             $("#nickname").val($(e).html());
         }
 
-        Array.prototype.forEach.call(document.getElementsByClassName("page"), function(p) {
-            p.style.display = "none";
+        $("#btnConnectCancel").click(function() {
+            gameData.state = gameState.ENDED;
+            window.cancelAnimationFrame(animFrameId);
+            $(".page").hide();
+            $("#server").show();
         });
+
+        $(".page").hide();
 
         p = getUrlParams(location.search);
 
@@ -128,12 +138,10 @@
                 CONFIG.PLAYER_TEAM = 1;
             }
 
-            document.getElementById("server").style.display = "none";
+            $("#server").hide();
+            $("#connecting").show();
 
-            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
-            game.init().run();
-
-            document.getElementById("gamearea").style.display = "block";
+            game.run();
         };
         
         document.getElementById("btnReset").onclick = function() {

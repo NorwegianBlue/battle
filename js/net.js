@@ -11,7 +11,7 @@ net = (function() {
 
         messageHandler: null,
 
-        connect: function(address, port) {
+        connect: function(address, port, callback) {
             self.bytesSent = 0;
             self.messagesSent = 0;
             self.bytesReceived = 0;
@@ -19,22 +19,14 @@ net = (function() {
 
             self.socket = new WebSocket("ws://"+address+":"+port);
 
-            self.socket.onopen = function() {
-                self.sendEvent(netevents.announceReady());
-            };
+            self.socket.onopen = callback;
 
             self.socket.onmessage = function(e) {
-                /*
-                   Handle event from other player
-                 */
-                //alert(e.data);
-
                 self.messagesReceived++;
                 self.bytesReceived += e.data.length;
 
-                if (messageHandler) {
-                    var message = JSON.parse(e.data);
-                    game.handleMessage(message);
+                if (self.messageHandler) {
+                    self.messageHandler(JSON.parse(e.data));
                 }
 
                 console.log("Received: ", message);

@@ -19,6 +19,7 @@ InputModes = Object.freeze({
     DEST_CLICK_FEEDBACK_DELAY: 2
 });
 
+var animFrameId;
 
 gameState = {
     JOINING: 0,
@@ -44,6 +45,8 @@ game = (function(width, height) {
         "asset/tileable_grass_01.png",
         "asset/moon.jpg"
     ];
+
+    var initialised = false;
 
     var lastTime = 0;
     var nextTextUpdate = 2000; // 10 seconds
@@ -83,9 +86,13 @@ game = (function(width, height) {
     var destClickFeedbackOff;
 
     var ENEMY_INDEX;
+    var ENEMY_UUID;
     var PLAYER_INDEX;
 
     var cells = gameData.cells;
+
+    var enemyHasArrived;
+    var lastAnnounce = 0;
 
     var self = {
 
@@ -121,35 +128,65 @@ game = (function(width, height) {
             
             stage.mousedown = stage.touchstart = onCellClick;
 
+            initialised = true;
             return self;
         },
 
         run: function () {
+            if (!initialised) {
+                self.init();
+            }
+            $("#connecting").show();
+
+            enemyHasArrived = false;
             PLAYER_INDEX = CONFIG.PLAYER_TEAM;
             ENEMY_INDEX = PLAYER_INDEX === 0 ? 1 : 0;
 
             net.messageHandler = self.handleMessage;
 
-            window.addEventListener("resize", doResize);
-            doResize();
+            var assetsLoaded = false,
+                mapLoaded = false,
+                socketConnected = net.socket;
+
+            var checkComplete = function() {
+                if (assetsLoaded && mapLoaded && socketConnected) {
+                    $(".page").hide();
+                    document.getElementById("gamearea").appendChild(renderer.view);
+                    setupGameState();
+                    nextTick = CONFIG.GAME_TICK_MS;
+                    nextSync = CONFIG.SYNC_MS;
+                    gameData.state = gameState.WAITING_FOR_PLAYERS;
+                    net.sendEvent(netevents.announceReady());
+                    $("#gamearea").show();
+                    self.update(0);
+                }
+            };
+
+            net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT, function () {
+                console.log("socket connected");
+                console.log(net.socket);
+                socketConnected = true;
+                checkComplete();
+            });
 
             loadAssets(function () {
-                document.getElementById("gamearea").appendChild(renderer.view);
+                assetsLoaded = true;
 
                 loadJSON("maps/map1.json",
                     function (data) {
                         mapData = data;
-                        setupGameState();
-                        nextTick = CONFIG.GAME_TICK_MS;
-                        nextSync = CONFIG.SYNC_MS;
-                        gameData.state = gameState.WAITING_FOR_PLAYERS;
-                        self.update(0);
+                        mapLoaded = true;
+                        checkComplete();
                     },
                     function (xhr) {
                         console.error(xhr);
+                        alert(xhr);
                     }
                 );
             });
+
+            window.addEventListener("resize", doResize);
+            doResize();
         },
 
         update: function (now) {
@@ -186,6 +223,7 @@ game = (function(width, height) {
         },
 
         handleMessage: function(e) {
+            console.log(e.action);
             switch(e.action) {
                 case "pushsync":
                     cells = e.syncData.cells;
@@ -216,6 +254,19 @@ game = (function(width, height) {
                 case "flowclear":
                     self.flowClear(e.team, e.cell.x, e.cell.y);
                     break;
+
+                case "ready":
+                    console.log("ready: ", e);
+                    if (e.team === ENEMY_INDEX) {
+                        var oldState = gameData.state;
+                        gameData.state = gameState.PLAYING;
+                        ENEMY_UUID = e.playeruuid;
+                        if (oldState === gameState.WAITING_FOR_PLAYERS) {
+                            net.sendEvent(netevents.announceReady());
+                        }
+                    }
+                    break;
+
             }
         },
 
@@ -233,10 +284,6 @@ game = (function(width, height) {
             } else if (secondCell.yi > firstCell.yi) {
                 direction = Cell.DOWN;
             } else {
-                // clicked the same cell twice - erase all flows
-                //if (team === PLAYER_INDEX) {
-                //    net.sendEvent(netevents.flowclear(firstCell.xi, firstCell.yi));
-                //}
                 self.flowClear(team, firstCell.xi, firstCell.yi);
                 return;
             }
@@ -270,6 +317,10 @@ game = (function(width, height) {
     }
 
     function onCellClick(ev) {
+        if (gameData.state !== gameState.PLAYING) {
+            return;
+        }
+
         var p = Cell.fromCss(ev.global.x, ev.global.y);
         switch(inputMode) {
             case InputModes.IDLE:
@@ -385,15 +436,16 @@ game = (function(width, height) {
                 mapData.title + " - "
                 + (frameCount / ((timeStamp - frameStart) / 1000.0)).toFixed(0) + " fps"
                 + ((message != "") ? (" - " + message) : "")
-                + " - im: " + inputMode
+                //+ " - im: " + inputMode
                 + " - plyr: " + PLAYER_INDEX
                 + " - tk: " + tick
-                + " - pr: " + window.devicePixelRatio
-                + " (" + window.innerWidth + "," + window.innerHeight + ")" 
+                //+ " - pr: " + window.devicePixelRatio
+                //+ " (" + window.innerWidth + "," + window.innerHeight + ")"
                 + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "\nGooglePlayGamesPlugin exists" : "")
-                + (deviceReadyCalled ? "" : "\ndeviceready not called")
-                + "\nsent: " + net.messagesSent + "/" + net.bytesSent
-                + " - received: " + net.messagesReceived + "/" + net.bytesReceived
+                //+ (deviceReadyCalled ? "" : "\ndeviceready not called")
+                + "\nsocket: " + (net.socket ? net.socket.readyState : "none")
+                + " - state: " + gameData.state + " - sent: " + net.messagesSent + "/" + (net.bytesSent/1024).toFixed(0) + "kb"
+                + " - received: " + net.messagesReceived + "/" + (net.bytesReceived/1024).toFixed(0) + "kb"
             );
             frameCount = 0;
             frameStart = timeStamp;
@@ -611,27 +663,47 @@ game = (function(width, height) {
     function gameLoop(timeDelta, timeStamp) {
         doFPS(timeDelta, timeStamp);
 
-        if (gameData.state >= gameState.ENDING) {
-        } else {
-            stepGameState(timeDelta, timeStamp);
+        switch (gameData.state) {
+            case gameState.JOINING:
+            case gameState.WAITING_FOR_PLAYERS:
+                if (gameData.cellsDirty) {
+                    drawCells();
+                    gameData.cellsDirty = false;
+                }
 
-            if (gameData.cellsDirty) {
-                drawCells();
-                gameData.cellsDirty = false;
-            }
+                if (lastAnnounce + 1000 < timeStamp) {
+                    lastAnnounce = timeStamp;
+                    net.sendEvent(netevents.announceReady());
+                }
+                break;
 
-            //if (flowsDirty) {
-            drawFlows();
-            flowsDirty = false;
-            //}
+            case gameState.PLAYING:
+                stepGameState(timeDelta, timeStamp);
 
-            if (generatorsDirty) {
-                drawGens();
-                generatorsDirty = false;
-            }
+                if (gameData.cellsDirty) {
+                    drawCells();
+                    gameData.cellsDirty = false;
+                }
+
+                //if (flowsDirty) {
+                drawFlows();
+                flowsDirty = false;
+                //}
+
+                if (generatorsDirty) {
+                    drawGens();
+                    generatorsDirty = false;
+                }
+                break;
+
+            case gameState.ENDING:
+            case gameState.ENDED:
+                break;
+
         }
+
         renderer.render(stage);
-        requestAnimFrame(self.update);
+        animFrameId = requestAnimFrame(self.update);
     }
 
     function foreachCell(fn) {
