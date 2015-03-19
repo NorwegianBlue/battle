@@ -47,11 +47,12 @@ body {
 
 #connecting {
     height: calc(100vh);
-    background-color: white;
+    background-color: black;
 }
 
 #connecting > div {
     padding: 20%;
+    color: white;
 }
 
 .page-footer {

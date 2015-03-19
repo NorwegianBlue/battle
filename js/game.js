@@ -189,6 +189,19 @@ game = (function(width, height) {
             doResize();
         },
 
+        resetGame: function() {
+            net.disconnect();
+            gameData.state = gameState.JOINING;
+            foreachCell(function(cell) {
+               cell.reset();
+            });
+            cellContainer.filters = [];
+            armyContainer.filters = [];
+            backgroundContainer.filters = [];
+            baseContainer.filters = [];
+            flowContainer.filters = [];
+        },
+
         update: function (now) {
             var delta = now - lastTime;
             gameLoop(delta, now);
@@ -657,6 +670,20 @@ game = (function(width, height) {
         backgroundContainer.filters = [bf];
         baseContainer.filters = [bf];
         flowContainer.filters = [bf];
+
+        var t;
+        if (win < 0) {
+            t = "YOU LOSE";
+        } else if (win > 0) {
+            t = "YOU WIN!";
+        } else {
+            t = "DRAW!";
+        }
+        var text = new PIXI.Text(t, {font: "40px Roboto,Arial", fill: 'yellow'});
+        text.position.x = 10;
+        text.position.y = innerHeight - 40;
+        text.
+        textContainer.addChild(text);
     }
 
 

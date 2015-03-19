@@ -42,6 +42,12 @@ net = (function() {
             return self.socket;
         },
 
+        disconnect: function() {
+            if (self.socket) {
+                self.socket.close();
+            }
+        },
+
         sendEvent: function(event) {
             self.sendBytes(JSON.stringify(event));
         },

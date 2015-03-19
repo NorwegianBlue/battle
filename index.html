@@ -101,6 +101,7 @@
 
     <script src="cordova.js"></script>
     <script src="lib/pixi.dev.js"></script>
+    <script src="lib/tween.js"></script>
 
     <script src="js/lobby.js"></script>
     <script src="js/net.js"></script>
@@ -129,7 +130,7 @@
 
         p = getUrlParams(location.search);
 
-        document.getElementById("submitBtn").onclick = function() {
+        $("#submitBtn").click(function() {
             CONFIG.SERVER_ADDRESS = document.getElementById("serverAddress").value;
             CONFIG.NICKNAME = document.getElementById("nickname").value;
             if ($("#playerTop").hasClass("active")) {
@@ -142,14 +143,18 @@
             $("#connecting").show();
 
             game.run();
-        };
+        });
         
-        document.getElementById("btnReset").onclick = function() {
-        };
-        
-        document.getElementById("btnPushSync").onclick = function() {
+        $("#btnReset").click(function() {
+            window.cancelAnimationFrame(animFrameId);
+            game.resetGame();
+            $(".page").hide();
+            $("#server").show();
+        });
+
+        $("#btnPushSync").click(function() {
             game.pushSync();
-        };
+        });
 
         if (p['server'] !== undefined) {
             CONFIG.SERVER_ADDRESS = p['server'];
@@ -183,7 +188,29 @@
             game.init().run();
             document.getElementById("gamearea").style.display = "block";
         } else {
-            document.getElementById("server").style.display = "block";
+            var animateId;
+
+            var tween = new TWEEN.Tween({margintop: 200})
+                    .to({margintop: 0}, 2000)
+                    .easing(TWEEN.Easing.Bounce.Out)
+                    .onStart(function () {
+                        $("#server").css('margin-top', this.margintop);
+                        $("#server").show();
+                    })
+                    .onStop(function() {
+                        cancelAnimationFrame(animateId);
+                    })
+                    .onUpdate(function () {
+                        $("#server").show();
+                        $("#server").css('margin-top', this.margintop);
+                    })
+                    .start();
+
+            animateId = requestAnimationFrame(animate);
+            function animate(time) {
+                animateId = requestAnimationFrame(animate);
+                TWEEN.update(time);
+            }
         }
     </script>
 </body>

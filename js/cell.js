@@ -1,4 +1,4 @@
-function Cell(x,y, pixiRect) {
+function Cell(x,y) {
     this.xi = x;
     this.yi = y;
 
@@ -27,6 +27,21 @@ Cell.UP = 0;
 Cell.RIGHT = 1;
 Cell.DOWN = 2;
 Cell.LEFT = 3;
+
+Cell.prototype.reset = function() {
+    this.armyStrength = 0.0;
+    this.armyOwner = -1;
+    this.generatorSpeed = 0.0;
+    this.lastChange = 0;
+
+    this.flows = new Array(2);
+    this.flows[0] = new Array(4);
+    this.flows[1] = new Array(4);
+
+    this.flowed = new Array(2);
+    this.flowed[0] = new Array(4);
+    this.flowed[1] = new Array(4);
+};
 
 Cell.toCssX = function(x) {
     return x * CONFIG.CELL_WIDTH;

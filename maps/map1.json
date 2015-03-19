@@ -1,6 +1,6 @@
 {
-    "title": "Grass",
-    "backgroundImage": "tileable_grass_00.png",
+    "title": "Moon",
+    "backgroundImage": "moon.jpg",
     "minColor": [
         0,
         140,
@@ -13,23 +13,28 @@
     ],
     "lineColor": 65280,
     "generators": [
-            {
-                "x": 2,
-                "y": 1,
-                "owner": 0
-            },
-            {
-                "x": 5,
-                "y": 10,
-                "owner": 1
-            }
-    ],
-    "armies": [
       {
         "x": 2,
-        "y": 2,
+        "y": 1,
         "owner": 0
       },
+      {
+        "x": 6,
+        "y": 1,
+        "owner": 0
+      },
+      {
+        "x": 2,
+        "y": 10,
+        "owner": 1
+      },
+      {
+        "x": 6,
+        "y": 10,
+        "owner": 1
+      }
+    ],
+    "armies": [
       {
         "x": 3,
         "y": 2,
@@ -47,11 +52,6 @@
       },
       {
         "x" : 3,
-        "y" : 9,
-        "owner": 1
-      },
-      {
-        "x" : 2,
         "y" : 9,
         "owner": 1
       },

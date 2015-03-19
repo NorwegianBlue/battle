@@ -6,7 +6,7 @@
       "projectTypeName": "com.intel.xdk.projecttype.jsapp",
       "src": "",
       "projectGuid": "d17e5745-c757-45f1-895a-0f5d63924bfc",
-      "lastModifiedDate": 1426114364226,
+      "lastModifiedDate": 1426568590624,
       "creationDate": 1425033103963
     },
     "sourceDirectory": "",
@@ -35,6 +35,13 @@
       {
         "id": "org.apache.cordova.device",
         "version": "0.2.13",
+        "selectedState": "Included",
+        "data": {},
+        "paramvals": {}
+      },
+      {
+        "id": "org.apache.cordova.splashscreen",
+        "version": "0.3.5",
         "selectedState": "Included",
         "data": {},
         "paramvals": {}
@@ -89,7 +96,15 @@
           }
         ],
         "icons_": [],
-        "splashes_": [],
+        "splashes_": [
+          {
+            "relPath": "splashscreens/splash 720x960.png",
+            "density": "xhdpi",
+            "height": 960,
+            "width": 720,
+            "orientation": "portrait"
+          }
+        ],
         "addlPermissions_": "",
         "excludedLibraries_": "",
         "appVersion_": "0.0.1",
