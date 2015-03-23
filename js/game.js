@@ -47,6 +47,7 @@ game = (function(width, height) {
     ];
 
     var initialised = false;
+    var tweening = 0;
 
     var lastTime = 0;
     var nextTextUpdate = 2000; // 10 seconds
@@ -59,6 +60,7 @@ game = (function(width, height) {
 
     var stage;
     var renderer;
+    var mainContainer; // everything but the winning text etc
 
     var backgroundContainer;
     var cellContainer;
@@ -94,6 +96,8 @@ game = (function(width, height) {
     var enemyHasArrived;
     var lastAnnounce = 0;
 
+    var debug = false;
+
     var self = {
 
         init: function () {
@@ -113,19 +117,22 @@ game = (function(width, height) {
             
             topContainer = new PIXI.DisplayObjectContainer();
 
-            stage.addChild(backgroundContainer);
-            stage.addChild(cellContainer);
-            stage.addChild(baseContainer);
-            stage.addChild(armyContainer);
-            stage.addChild(flowContainer);
+            mainContainer = new PIXI.DisplayObjectContainer();
+            mainContainer.addChild(backgroundContainer);
+            mainContainer.addChild(cellContainer);
+            mainContainer.addChild(baseContainer);
+            mainContainer.addChild(armyContainer);
+            mainContainer.addChild(flowContainer);
+
+            stage.addChild(mainContainer);
+            //stage.addChild(backgroundContainer);
+            //stage.addChild(cellContainer);
+            //stage.addChild(baseContainer);
+            //stage.addChild(armyContainer);
+            //stage.addChild(flowContainer);
             stage.addChild(textContainer);
             stage.addChild(topContainer);
 
-            text = new PIXI.Text("Battle", {font: "20px Roboto,Arial", fill: 'white'});
-            text.position.x = 10;
-            text.position.y = 10;
-            textContainer.addChild(text);
-            
             stage.mousedown = stage.touchstart = onCellClick;
 
             initialised = true;
@@ -137,6 +144,19 @@ game = (function(width, height) {
                 self.init();
             }
             $("#connecting").show();
+
+            if (debug) {
+                $("#debugButtons").show();
+            } else {
+                $("#debugButtons").hide();
+            }
+
+            textContainer.removeChildren();
+            text = new PIXI.Text("", {font: "20px Roboto,Arial", fill: 'white'});
+            text.position.x = 10;
+            text.position.y = 10;
+            textContainer.addChild(text);
+
 
             enemyHasArrived = false;
             PLAYER_INDEX = CONFIG.PLAYER_TEAM;
@@ -195,11 +215,12 @@ game = (function(width, height) {
             foreachCell(function(cell) {
                cell.reset();
             });
-            cellContainer.filters = [];
-            armyContainer.filters = [];
-            backgroundContainer.filters = [];
-            baseContainer.filters = [];
-            flowContainer.filters = [];
+            mainContainer.filters = null;
+            //cellContainer.filters = null;
+            //armyContainer.filters = null;
+            //backgroundContainer.filters = null;
+            //baseContainer.filters = null;
+            //flowContainer.filters = null;
         },
 
         update: function (now) {
@@ -443,28 +464,30 @@ game = (function(width, height) {
     }
 
     function doFPS(timeDelta, timeStamp) {
-        if (timeStamp > nextTextUpdate  ||  textDirty) {
-            nextTextUpdate = timeStamp + 1000;
-            text.setText(
-                mapData.title + " - "
-                + (frameCount / ((timeStamp - frameStart) / 1000.0)).toFixed(0) + " fps"
-                + ((message != "") ? (" - " + message) : "")
-                //+ " - im: " + inputMode
-                + " - plyr: " + PLAYER_INDEX
-                + " - tk: " + tick
-                //+ " - pr: " + window.devicePixelRatio
-                //+ " (" + window.innerWidth + "," + window.innerHeight + ")"
-                + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "\nGooglePlayGamesPlugin exists" : "")
-                //+ (deviceReadyCalled ? "" : "\ndeviceready not called")
-                + "\nsocket: " + (net.socket ? net.socket.readyState : "none")
-                + " - state: " + gameData.state + " - sent: " + net.messagesSent + "/" + (net.bytesSent/1024).toFixed(0) + "kb"
-                + " - received: " + net.messagesReceived + "/" + (net.bytesReceived/1024).toFixed(0) + "kb"
-            );
-            frameCount = 0;
-            frameStart = timeStamp;
-            textDirty = false;
-        } else {
-            frameCount++;
+        if (debug) {
+            if (timeStamp > nextTextUpdate || textDirty) {
+                nextTextUpdate = timeStamp + 1000;
+                text.setText(
+                    mapData.title + " - "
+                    + (frameCount / ((timeStamp - frameStart) / 1000.0)).toFixed(0) + " fps"
+                    + ((message != "") ? (" - " + message) : "")
+                        //+ " - im: " + inputMode
+                    + " - plyr: " + PLAYER_INDEX
+                    + " - tk: " + tick
+                        //+ " - pr: " + window.devicePixelRatio
+                        //+ " (" + window.innerWidth + "," + window.innerHeight + ")"
+                    + ((typeof GooglePlayGamesPlugin !== 'undefined') ? "\nGooglePlayGamesPlugin exists" : "")
+                        //+ (deviceReadyCalled ? "" : "\ndeviceready not called")
+                    + "\nsocket: " + (net.socket ? net.socket.readyState : "none")
+                    + " - state: " + gameData.state + " - sent: " + net.messagesSent + "/" + (net.bytesSent / 1024).toFixed(0) + "kb"
+                    + " - received: " + net.messagesReceived + "/" + (net.bytesReceived / 1024).toFixed(0) + "kb"
+                );
+                frameCount = 0;
+                frameStart = timeStamp;
+                textDirty = false;
+            } else {
+                frameCount++;
+            }
         }
     }
     
@@ -660,30 +683,69 @@ game = (function(width, height) {
         }
     }
 
+    self.gameover = gameover;
+
     function gameover(win) {
         gameData.state = gameState.ENDED;
         textContainer.removeChildren();
         var bf = new PIXI.BlurFilter();
         bf.blur = 15;
-        cellContainer.filters = [bf];
-        armyContainer.filters = [bf];
-        backgroundContainer.filters = [bf];
-        baseContainer.filters = [bf];
-        flowContainer.filters = [bf];
+        mainContainer.filters = [bf];
+        //backgroundContainer.filters = [bf];
+        //baseContainer.filters = [bf];
+        //flowContainer.filters = [bf];
+        //cellContainer.filters = [bf];
+        //armyContainer.filters = [bf];
 
         var t;
         if (win < 0) {
-            t = "YOU LOSE";
+            t = "YOU LOSE!";
         } else if (win > 0) {
             t = "YOU WIN!";
         } else {
             t = "DRAW!";
         }
-        var text = new PIXI.Text(t, {font: "40px Roboto,Arial", fill: 'yellow'});
-        text.position.x = 10;
-        text.position.y = innerHeight - 40;
-        text.
+
+        var text = new PIXI.Text(t, {
+            font: "80px Roboto,Arial",
+            fill: 'yellow',
+            stroke: 'red',
+            strokeThickness: 5,
+            dropShadow: true,
+            dropShadowDistance: 10,
+            dropShadowColor: "#333333"
+        });
         textContainer.addChild(text);
+
+        var animateId;
+        var finalx = ~~((renderer.width - text.width) / 2),
+            finaly = ~~((renderer.height - text.height) / 2);
+
+        text.position.x = finalx;
+        text.position.y = -text.height;
+
+        var tween = new TWEEN.Tween({ypos: -text.height, ratio: 0})
+            .to({ypos: finaly, ratio: 1.0}, 2000)
+            .easing(TWEEN.Easing.Bounce.Out)
+            .onStart(function () {
+                console.log("tween start ", tweening);
+            })
+            .onStop(function() {
+                tweening--;
+                console.log("tween end ", tweening);
+            })
+            .onComplete(function() {
+                tweening--;
+                console.log("tween end ", tweening);
+            })
+            .onUpdate(function () {
+                text.position.x = ~~(finalx + (text.width * (1-this.ratio)));
+                text.position.y = this.ypos;
+                text.scale.x = this.ratio;
+                text.scale.y = this.ratio;
+            })
+            .start();
+        tweening++;
     }
 
 
@@ -729,7 +791,12 @@ game = (function(width, height) {
 
         }
 
+        if (tweening > 0) {
+            TWEEN.update(timeStamp);
+        }
+
         renderer.render(stage);
+
         animFrameId = requestAnimFrame(self.update);
     }
 

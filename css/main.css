@@ -42,7 +42,16 @@ body {
 
 #server.page, #server > .page-footer {
     font-size: 2em;
-    background-color: white;
+    background-color: black;
+    color: white;
+}
+
+#server input {
+    background-color: black;
+    color: #57f0e7;
+    font-size: 1.1em;
+    line-height: 1.1em;
+    height: 2em;
 }
 
 #connecting {
