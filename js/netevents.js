@@ -20,6 +20,20 @@ netevents = (function() {
             return e;
         },
 
+        pingpeer: function() {
+            var e = new NetEvent('pingpeer');
+            e.playeruuid = CONFIG.PLAYER_UUID;
+            return e;
+        },
+
+        pingresponse: function(sentAt, respondTo) {
+            var e = new NetEvent('pingresponse');
+            e.pingStart = sentAt;
+            e.respondTo = respondTo;
+            e.responseFrom = CONFIG.PLAYER_UUID;
+            return e;
+        },
+
         pushsync: function(game) {
             var e = new NetEvent('pushsync');
             e.playeruuid = CONFIG.PLAYER_UUID;

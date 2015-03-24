@@ -179,6 +179,11 @@
             CONFIG.NICKNAME = p['nickname'];
         }
 
+        if (p['debug'] === "1") {
+            CONFIG.debug = true;
+            $("body").append("<br />Debug mode");
+        }
+
         document.getElementById("playerTop").checked = (CONFIG.PLAYER_TEAM === 0);
         document.getElementById("playerBottom").checked = (CONFIG.PLAYER_TEAM !== 0);
 

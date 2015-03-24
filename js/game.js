@@ -2,6 +2,7 @@ var message = "";
 var deviceReadyCalled = false;
 
 CLICK_FEEDBACK_MS = 300;
+PING_RATE_MS = 500;
 
 /* Constants */
 RED_INDEX = 0;
@@ -32,6 +33,9 @@ gameState = {
 gameData = (function() {
     var self = {
         state: gameState.JOINING,
+
+        lastPing: null,
+
         cells: null,
         cellsDirty: false
     };
@@ -56,6 +60,7 @@ game = (function(width, height) {
     
     var nextTick = 0;
     var nextSync = 0;
+    var nextPing = 0;
     var tick = 0;
 
     var stage;
@@ -95,8 +100,7 @@ game = (function(width, height) {
 
     var enemyHasArrived;
     var lastAnnounce = 0;
-
-    var debug = false;
+    var pingSentAt = 0;
 
     var self = {
 
@@ -145,7 +149,7 @@ game = (function(width, height) {
             }
             $("#connecting").show();
 
-            if (debug) {
+            if (CONFIG.debug) {
                 $("#debugButtons").show();
             } else {
                 $("#debugButtons").hide();
@@ -175,6 +179,7 @@ game = (function(width, height) {
                     setupGameState();
                     nextTick = CONFIG.GAME_TICK_MS;
                     nextSync = CONFIG.SYNC_MS;
+                    nextPing = PING_RATE_MS;
                     gameData.state = gameState.WAITING_FOR_PLAYERS;
                     net.sendEvent(netevents.announceReady());
                     $("#gamearea").show();
@@ -259,6 +264,21 @@ game = (function(width, height) {
         handleMessage: function(e) {
             console.log(e.action);
             switch(e.action) {
+                case "pingpeer":
+                    var ev = netevents.pingresponse(e.timestamp, e.playeruuid);
+                    net.sendEvent(ev);
+                    break;
+
+                case "pingresponse":
+                    if (e.respondTo === CONFIG.PLAYER_UUID) {
+                        if (e.pingStart === pingSentAt) {
+                            gameData.lastPing = Date.now() - pingSentAt;
+                        } else {
+                            console.log("dropped ping", pingSentAt)
+                        }
+                    }
+                    break;
+
                 case "pushsync":
                     cells = e.syncData.cells;
                     [].forEach.call(cells, function(a) {
@@ -340,6 +360,12 @@ game = (function(width, height) {
                 }
             }
             flowsDirty = true;
+        },
+
+        pingpeer: function() {
+            var ev = netevents.pingpeer();
+            pingSentAt = ev.timestamp;
+            net.sendEvent(ev);
         }
     };
 
@@ -464,7 +490,7 @@ game = (function(width, height) {
     }
 
     function doFPS(timeDelta, timeStamp) {
-        if (debug) {
+        if (CONFIG.debug) {
             if (timeStamp > nextTextUpdate || textDirty) {
                 nextTextUpdate = timeStamp + 1000;
                 text.setText(
@@ -481,6 +507,7 @@ game = (function(width, height) {
                     + "\nsocket: " + (net.socket ? net.socket.readyState : "none")
                     + " - state: " + gameData.state + " - sent: " + net.messagesSent + "/" + (net.bytesSent / 1024).toFixed(0) + "kb"
                     + " - received: " + net.messagesReceived + "/" + (net.bytesReceived / 1024).toFixed(0) + "kb"
+                    + "\nping: " + gameData.lastPing + " ms"
                 );
                 frameCount = 0;
                 frameStart = timeStamp;
@@ -680,6 +707,11 @@ game = (function(width, height) {
 
             nextSync = timeStamp + CONFIG.SYNC_MS;
             self.pushUpdateSync();
+        }
+
+        if (timeStamp >= nextPing) {
+            self.pingpeer();
+            nextPing = timeStamp + PING_RATE_MS;
         }
     }
 
