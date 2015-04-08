@@ -1,5 +1,4 @@
-function loadJSON(path, success, error)
-{
+function loadJSON(path, success, error) {
     var xhr = new XMLHttpRequest();
     xhr.onreadystatechange = function()
     {
@@ -150,3 +149,14 @@ function S4() {
 function UUID() {
     return (S4() + S4() + "-" + S4() + "-4" + S4().substr(0,3) + "-" + S4() + "-" + S4() + S4() + S4());
 }
+
+
+module.exports = {
+    loadJSON: loadJSON,
+    getUrlParams: getUrlParams,
+    extend: extend,
+    isWindow: isWindow,
+    isPlainObject: isPlainObject,
+    isEmptyObject: isEmptyObject,
+    UUID: UUID
+};

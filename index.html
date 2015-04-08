@@ -30,8 +30,8 @@
 
                 <div class="form-group text-center">
                     <div class="btn-group-vertical">
-                        <button type="button" id="playerTop" class="btn btn-default btn-danger" onclick="onTeamClick(this);"> Red Team </button>
-                        <button type="button" id="playerBottom" class="btn btn-default btn-primary" onclick="onTeamClick(this);"> Blue Team </button>
+                        <button type="button" id="playerTop" class="btn btn-default btn-danger"> Red Team </button>
+                        <button type="button" id="playerBottom" class="btn btn-default btn-primary"> Blue Team </button>
                     </div>
                 </div>
             </form>
@@ -64,173 +64,10 @@
         </div>
     </div>
 
-    <script src="js/utils.js"></script>
-
-    <script type="text/javascript">
-        CELLRES = 64;
-        
-        CONFIG = {
-            CELL_WIDTH: CELLRES,
-            CELL_HEIGHT: CELLRES,
-            X_RESOLUTION: (8)*CELLRES +1,
-            Y_RESOLUTION: 12*CELLRES +1,
-
-            SHOW_ENEMY_FLOWS: true,
-            IDLE_FLOW_TIMEOUT_SEC: 30,
-
-            PLAYER_JOIN_WAIT_SEC: 20,
-
-            GAME_TICK_MS: 25,
-            SYNC_MS: 500,
-            GENERATOR_SPEED: 0.005,
-            FLOW_RATE: 0.0125,
-            CASUALTY_FACTOR: 0.007,
-            
-            SERVER_PORT: 443,
-            SERVER_ADDRESS: "battle.regalement.com",
-            NICKNAME: null,
-            PLAYER_TEAM: -1,
-            PLAYER_UUID: UUID()
-        };
-        
-        RENDER_OPTIONS = {
-            antialias: true,
-            resolution: window.devicePixelRatio
-        };
-        
-    </script>
-
     <script id="hbsLobby" src="templates/lobby.hbs" type="text/x-handlebars-template"></script>
 
     <script src="cordova.js"></script>
     <script src="lib/pixi.dev.js"></script>
-    <script src="lib/tween.js"></script>
-
-    <script src="js/lobby.js"></script>
-    <script src="js/net.js"></script>
-    <script src="js/army.js"></script>
-    <script src="js/base.js"></script>
-    <script src="js/cell.js"></script>
-    <script src="js/netevents.js"></script>
-    <script src="js/game.js"></script>
-
-    <script type="text/javascript">
-        function onTeamClick(e) {
-            $(e).siblings().removeClass("active");
-            $(e).addClass("active");
-
-            $("#nickname").val($(e).html());
-        }
-
-        $("#btnConnectCancel").click(function() {
-            gameData.state = gameState.ENDED;
-            window.cancelAnimationFrame(animFrameId);
-            $(".page").hide();
-            $("#server").show();
-        });
-
-        $(".page").hide();
-
-        p = getUrlParams(location.search);
-
-        $("#submitBtn").click(function() {
-            CONFIG.SERVER_ADDRESS = document.getElementById("serverAddress").value;
-            CONFIG.NICKNAME = document.getElementById("nickname").value;
-            if ($("#playerTop").hasClass("active")) {
-                CONFIG.PLAYER_TEAM = 0;
-            } else {
-                CONFIG.PLAYER_TEAM = 1;
-            }
-
-            $("#server").hide();
-            $("#connecting").show();
-
-            game.run();
-        });
-        
-        $("#btnReset").click(function() {
-            window.cancelAnimationFrame(animFrameId);
-            game.resetGame();
-            $(".page").hide();
-            $("#server").show();
-        });
-
-        $("#btnPushSync").click(function() {
-            game.pushSync();
-        });
-
-        $("#btnWin").click(function() {
-            game.gameover(+1);
-        });
-
-        $("#btnLose").click(function() {
-            game.gameover(-1);
-        });
-
-        if (p['server'] !== undefined) {
-            CONFIG.SERVER_ADDRESS = p['server'];
-        }
-
-        if (p['team'] !== undefined) {
-            CONFIG.PLAYER_TEAM = parseInt(p['team'], 10);
-        }
-
-        if (p['nickname'] !== undefined) {
-            CONFIG.NICKNAME = p['nickname'];
-        }
-
-        if (p['debug'] === "1") {
-            CONFIG.debug = true;
-            $("body").append("<br />Debug mode");
-        }
-
-        document.getElementById("playerTop").checked = (CONFIG.PLAYER_TEAM === 0);
-        document.getElementById("playerBottom").checked = (CONFIG.PLAYER_TEAM !== 0);
-
-        document.getElementById("serverAddress").value = CONFIG.SERVER_ADDRESS;
-
-        if (CONFIG.NICKNAME === null) {
-            if (typeof device === 'undefined') {
-                document.getElementById("nickname").value = CONFIG.NICKNAME;
-            } else {
-                document.getElementById("nickname").value = device.model;
-            }
-        } else {
-            document.getElementById("nickname").value = CONFIG.NICKNAME;
-        }
-
-        if (p['run'] !== undefined) {
-            s = net.connect(CONFIG.SERVER_ADDRESS, CONFIG.SERVER_PORT);
-            game.init().run();
-            document.getElementById("gamearea").style.display = "block";
-        } else {
-            $("#server").show();
-            /*
-        }
-            var animateId;
-
-            var tween = new TWEEN.Tween({margintop: 200})
-                    .to({margintop: 0}, 2000)
-                    .easing(TWEEN.Easing.Bounce.Out)
-                    .onStart(function () {
-                        $("#server").css('margin-top', this.margintop);
-                        $("#server").show();
-                    })
-                    .onStop(function() {
-                        cancelAnimationFrame(animateId);
-                    })
-                    .onUpdate(function () {
-                        $("#server").show();
-                        $("#server").css('margin-top', this.margintop);
-                    })
-                    .start();
-
-            animateId = requestAnimationFrame(animate);
-            function animate(time) {
-                animateId = requestAnimationFrame(animate);
-                TWEEN.update(time);
-            }*/
-        }
-    </script>
+    <script src="js/dist/main.js"></script>
 </body>
 </html>
